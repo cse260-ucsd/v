@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GotoGEMM Loop Explorer</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --fg: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #c7c7cc;
+    --hl: rgba(29, 29, 31, 0.055);
+    --c-fill: #e8eef7;  --c-stroke: #4a6fa5;
+    --a-fill: #f6ebe4;  --a-stroke: #b06a3b;
+    --b-fill: #e7f2ea;  --b-stroke: #4b8b5e;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161618;
+      --fg: #ececee;
+      --muted: #9a9aa0;
+      --line: #48484d;
+      --hl: rgba(236, 236, 238, 0.07);
+      --c-fill: #1e2938;  --c-stroke: #7fa3d6;
+      --a-fill: #352820;  --a-stroke: #d99a6c;
+      --b-fill: #1e3125;  --b-stroke: #7cbf8f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161618;
+    --fg: #ececee;
+    --muted: #9a9aa0;
+    --line: #48484d;
+    --hl: rgba(236, 236, 238, 0.07);
+    --c-fill: #1e2938;  --c-stroke: #7fa3d6;
+    --a-fill: #352820;  --a-stroke: #d99a6c;
+    --b-fill: #1e3125;  --b-stroke: #7cbf8f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    line-height: 1.6;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 16px 96px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .help-btn {
+    flex: none;
+    margin-top: 8px;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    cursor: pointer;
+  }
+  .help-btn:hover { border-color: var(--muted); }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 2.2rem;
+    margin: 0 0 8px;
+  }
+  sub { font-size: 0.7em; }
+  i { font-family: var(--serif); }
+
+  /* Tilde accent for packed matrices (combining U+0303 renders unreliably) */
+  .tl { position: relative; display: inline-block; }
+  .tl::after {
+    content: "~";
+    position: absolute;
+    left: 0.08em; right: 0;
+    top: -0.3em;
+    text-align: center;
+    font-style: normal;
+    line-height: 1;
+  }
+
+  .kc { color: var(--c-stroke); }
+  .ka { color: var(--a-stroke); }
+  .kb { color: var(--b-stroke); }
+
+  /* ---------- Stage: figure + piece sizes + caption ---------- */
+  .stage {
+    background: var(--bg);
+    padding: 16px 0 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (min-height: 700px) and (min-width: 600px) {
+    .stage { position: sticky; top: 0; z-index: 2; }
+  }
+
+  .figure svg { width: 100%; height: auto; display: block; }
+  svg text { user-select: none; -webkit-user-select: none; }
+  svg .dim-line { stroke: var(--muted); stroke-width: 1; }
+  svg .dim-label {
+    fill: var(--fg);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+  }
+  svg .sub { font-size: 15px; }
+  svg .op {
+    fill: var(--muted);
+    font-family: var(--serif);
+    font-size: 36px;
+  }
+  svg .name { font-family: var(--serif); font-size: 26px; }
+
+  .mat .base { stroke-width: 1.5; }
+  .mat-c .base { fill: var(--c-fill); stroke: var(--c-stroke); }
+  .mat-a .base { fill: var(--a-fill); stroke: var(--a-stroke); }
+  .mat-b .base { fill: var(--b-fill); stroke: var(--b-stroke); }
+  .mat-c .name { fill: var(--c-stroke); }
+  .mat-a .name { fill: var(--a-stroke); }
+  .mat-b .name { fill: var(--b-stroke); }
+
+  /* One rect per level of blocking. "cur" is the piece this iteration
+     touches; "anc" are the enclosing pieces from the outer loops. */
+  .piece {
+    fill-opacity: 0.1;
+    stroke-width: 0;
+    transition: fill-opacity 0.3s, stroke-width 0.3s, opacity 0.35s;
+  }
+  .mat-c .piece { fill: var(--c-stroke); stroke: var(--c-stroke); }
+  .mat-a .piece { fill: var(--a-stroke); stroke: var(--a-stroke); }
+  .mat-b .piece { fill: var(--b-stroke); stroke: var(--b-stroke); }
+  .piece.cur { fill-opacity: 0.4; stroke-width: 2; }
+  .piece.whole.anc { fill-opacity: 0; }
+  .piece.out { opacity: 0; }
+
+  .cuts line { stroke-width: 1.25; stroke-dasharray: 4 3; }
+  .mat-c .cuts line { stroke: var(--c-stroke); }
+  .mat-a .cuts line { stroke: var(--a-stroke); }
+  .mat-b .cuts line { stroke: var(--b-stroke); }
+  .cuts { opacity: 0; transition: opacity 0.35s; }
+  .cuts.in { opacity: 0.4; }
+  .cuts.in.new { opacity: 1; }
+  .cuts.out, .cuts.in.out { opacity: 0; }
+
+  svg .hover {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 1.5;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  svg .hover.on { opacity: 0.5; }
+
+  /* Several variants share one grid cell so the box is always as tall as
+     the tallest one, and swapping them never shifts the page. */
+  .swap { display: grid; }
+  .swap > * { grid-area: 1 / 1; visibility: hidden; }
+  .swap > .on { visibility: visible; }
+
+  .dims {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: 2%;
+    padding: 0 0 0 3.2%;   /* centres each column under its matrix */
+    margin: 12px 0 0;
+    list-style: none;
+    text-align: center;
+  }
+  .dims li {
+    border-top: 2px solid var(--line);
+    padding-top: 8px;
+    transition: border-color 0.3s;
+  }
+  .dims li.c { border-color: var(--c-stroke); }
+  .dims li.a { border-color: var(--a-stroke); }
+  .dims li.b { border-color: var(--b-stroke); }
+  .dims li.same { border-color: var(--line); }
+  .dims .pn { font-size: 0.85rem; font-weight: 600; line-height: 1.5; }
+  .dims li.c .pn { color: var(--c-stroke); }
+  .dims li.a .pn { color: var(--a-stroke); }
+  .dims li.b .pn { color: var(--b-stroke); }
+  .dims .d { font-family: var(--serif); font-style: italic; font-size: 1.15rem; line-height: 1.4; }
+  .dims .w { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 32px;
+    margin-top: 20px;
+  }
+  .caption { flex: 1 1 420px; }
+  .caption .t { font-family: var(--serif); font-size: 1.2rem; line-height: 1.35; }
+  .caption p { margin: 4px 0 0; color: var(--muted); max-width: 600px; }
+
+  .controls { display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+  .controls button {
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .controls button:hover:not(:disabled) { border-color: var(--muted); }
+  .controls button:disabled { opacity: 0.35; cursor: default; }
+  #play { min-width: 4.5em; }
+  .step-readout {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-width: 6ch;
+    text-align: center;
+  }
+
+  /* ---------- Code ---------- */
+  .code {
+    margin-top: 28px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    line-height: 1.75;
+  }
+  .code-inner {
+    display: grid;
+    grid-template-columns: max-content minmax(32px, 1fr) max-content max-content;
+    min-width: max-content;
+  }
+  .ln {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    padding: 1px 0 1px 18px;
+    border-left: 2px solid var(--line);
+    transition: opacity 0.25s, background-color 0.15s, border-color 0.25s;
+  }
+  .ln .src { grid-column: 1; white-space: pre; }
+  .ln .chip {
+    grid-column: 3;
+    min-width: 11ch;
+    padding-left: 16px;
+    text-align: right;
+    visibility: hidden;
+  }
+  .ln .tag { grid-column: 4; padding: 0 16px 0 20px; white-space: nowrap; }
+  .cm { color: var(--muted); }
+
+  .ln[role="button"] { cursor: pointer; }
+  .ln[role="button"]:hover { background: var(--hl); }
+  .ln[role="button"]:focus-visible { outline: 2px solid var(--c-stroke); outline-offset: -2px; }
+  .ln.anc { border-left-color: var(--muted); }
+  .ln.sel { border-left-color: var(--fg); background: var(--hl); }
+  .ln.anc .chip, .ln.sel .chip { visibility: visible; }
+  .ln.sel .chip { font-weight: 600; }
+  .ln.deep { opacity: 0.4; }
+
+  /* ---------- Help dialog ---------- */
+  dialog.help {
+    width: calc(100% - 32px);
+    max-width: 520px;
+    padding: 0;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  }
+  dialog.help::backdrop { background: rgba(0, 0, 0, 0.35); }
+  .help-body { position: relative; padding: 28px 28px 24px; }
+  .help h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 1.4rem;
+    margin: 0 0 16px;
+  }
+  .help ul { list-style: none; margin: 0; padding: 0; }
+  .help li { padding: 12px 0; border-top: 1px solid var(--line); }
+  .help li strong { display: block; font-weight: 600; }
+  .help li span { color: var(--muted); }
+  .help .aside { color: var(--muted); font-size: 0.9rem; margin: 16px 0 0; }
+  .help .aside i { color: var(--fg); }
+  .help .close {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 32px; height: 32px;
+    font: inherit;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .help .close:hover { color: var(--fg); background: var(--hl); }
+  kbd {
+    font-family: var(--mono);
+    font-size: 0.8em;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0 4px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 1.8rem; }
+    svg .dim-label { font-size: 28px; }
+    svg .sub { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .piece, .cuts, .ln, .dims li { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>GotoGEMM, Loop by Loop</h1>
+    </div>
+    <button type="button" class="help-btn" id="help-open" aria-haspopup="dialog" aria-label="How to use">?</button>
+  </header>
+
+  <section class="stage">
+    <div class="figure">
+      <svg id="fig" viewBox="0 0 1120 345" role="img" aria-label="C equals A times B"></svg>
+    </div>
+
+    <ul class="dims" id="dims">
+      <li class="c swap" data-m="C"></li>
+      <li class="a swap" data-m="A"></li>
+      <li class="b swap" data-m="B"></li>
+    </ul>
+
+    <div class="bar">
+      <div class="caption swap" id="caption"></div>
+      <div class="controls">
+        <button type="button" id="prev" aria-label="Previous iteration">←</button>
+        <span class="step-readout" id="readout">–</span>
+        <button type="button" id="next" aria-label="Next iteration">→</button>
+        <button type="button" id="play" aria-pressed="false">Play</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="code" role="group" aria-label="GotoGEMM loop nest">
+    <div class="code-inner" id="code"></div>
+  </div>
+
+  <dialog class="help" id="help" aria-labelledby="help-title">
+    <div class="help-body">
+      <button type="button" class="close" id="help-close" aria-label="Close">×</button>
+      <h2 id="help-title">How to use</h2>
+      <ul>
+        <li>
+          <strong>Pick a loop</strong>
+          <span>Click a line of code. When the code has focus,
+          <kbd>↑</kbd> and <kbd>↓</kbd> move between loops.</span>
+        </li>
+        <li>
+          <strong>Step through it</strong>
+          <span><kbd>←</kbd> and <kbd>→</kbd> (or the arrow buttons) step
+          the selected loop in the order the loop nest runs it. Stepping past
+          its last iteration moves the loop above it along. Play steps
+          automatically.</span>
+        </li>
+        <li>
+          <strong>Jump to a block</strong>
+          <span>Click any block in a matrix.</span>
+        </li>
+      </ul>
+      <p class="aside">
+        The figure keeps every block big enough to see. Real blocks are far
+        more lopsided: the <strong>L3</strong> block is often several thousand elements on its
+        long side, while the <i>m</i><sub>r</sub> × <i>n</i><sub>r</sub> tile
+        is something like 6 × 8.
+      </p>
+    </div>
+  </dialog>
+
+  <div class="sr-only" aria-live="polite" id="live"></div>
+</main>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+
+  // Figure scale in px, same as gotogemm.html section 01.
+  // n = 3·nc, nc = 5·nr;  m = 3·mc, mc = 4·mr;  k = 3·kc, kc = 6 steps of p.
+  const M = 240, N = 300, K = 180;
+  const MC = 80, NC = 100, KC = 60;
+  const MR = 20, NR = 20, PW = 10;
+
+  const MATS = {
+    C: { x: 60,  y: 50, w: N, h: M, ws: "n", hs: "m" },
+    A: { x: 490, y: 50, w: K, h: M, ws: "k", hs: "m" },
+    B: { x: 800, y: 80, w: N, h: K, ws: "n", hs: "k" },
+  };
+
+  // Each loop cuts two of the three matrices: [axis, step in px, size symbol].
+  const LOOPS = [
+    { v: "ic", n: M / MC,  u: "mc", cuts: { C: ["y", MC, "mc"], A: ["y", MC, "mc"] } },
+    { v: "pc", n: K / KC,  u: "kc", cuts: { A: ["x", KC, "kc"], B: ["y", KC, "kc"] } },
+    { v: "jc", n: N / NC,  u: "nc", cuts: { C: ["x", NC, "nc"], B: ["x", NC, "nc"] } },
+    { v: "ir", n: MC / MR, u: "mr", cuts: { C: ["y", MR, "mr"], A: ["y", MR, "mr"] } },
+    { v: "jr", n: NC / NR, u: "nr", cuts: { C: ["x", NR, "nr"], B: ["x", NR, "nr"] } },
+    { v: "p",  n: KC / PW, u: "",   cuts: { A: ["x", PW, "1"],  B: ["y", PW, "1"] } },
+  ];
+
+  // ---------- Text ----------
+  const tl = s => `<span class="tl">${s}</span>`;
+  const it = s => `<i>${s}</i>`;
+  const sb = (a, b) => `<i>${a}</i><sub>${b}</sub>`;
+  const mC = '<i class="kc">C</i>', mA = '<i class="ka">A</i>', mB = '<i class="kb">B</i>';
+  const tA = '<i class="ka tl">A</i>', tB = '<i class="kb tl">B</i>';
+  const cC = '<span class="kc">C</span>', cA = '<span class="ka">A</span>', cB = '<span class="kb">B</span>';
+  const ctA = '<span class="ka tl">A</span>', ctB = '<span class="kb tl">B</span>';
+
+  const CAPTIONS = [
+    [`${mC} += ${mA} · ${mB}`,
+     `The whole multiply, before any blocking.`],
+    [`Loop 5 · ${it("ic")} steps down ${it("m")} in chunks of ${sb("m", "c")}`,
+     `Cuts ${mC} and ${mA} into row panels. Every panel of ${mC} needs all of ${mB}, so ${mB} is not cut.`],
+    [`Loop 4 · ${it("pc")} steps through ${it("k")} in chunks of ${sb("k", "c")}`,
+     `Cuts ${mB} into row panels and the ${mA} panel into ${sb("m", "c")} × ${sb("k", "c")} blocks. Each block is packed into ${tA}, sized for <strong>L3</strong>. ${mC} is not cut: every step adds a partial product into the same panel.`],
+    [`Loop 3 · ${it("jc")} steps across ${it("n")} in chunks of ${sb("n", "c")}`,
+     `Cuts the ${mB} panel and the ${mC} panel into blocks of ${sb("n", "c")} columns. Each block of ${mB} is packed into ${tB}, sized for <strong>L2</strong>. ${tA} is not cut: every block reuses it.`],
+    [`Loop 2 · ${it("ir")} steps down ${tA} in chunks of ${sb("m", "r")}`,
+     `Cuts ${tA} into ${sb("m", "r")} × ${sb("k", "c")} micro-panels and the ${mC} block into strips ${sb("m", "r")} tall. The ${tA} micro-panel stays in <strong>L1</strong>. ${tB} is not cut: every micro-panel reuses it.`],
+    [`Loop 1 · ${it("jr")} steps across ${tB} in chunks of ${sb("n", "r")}`,
+     `Cuts ${tB} into ${sb("k", "c")} × ${sb("n", "r")} micro-panels and the ${mC} strip into ${sb("m", "r")} × ${sb("n", "r")} tiles. The tile is held in <strong>registers</strong>. The ${tA} micro-panel is not cut: every tile reuses it.`],
+    [`Micro-kernel · ${it("p")} steps through ${sb("k", "c")} one at a time`,
+     `Takes column ${it("p")} of the ${tA} micro-panel and row ${it("p")} of the ${tB} micro-panel. Their outer product updates the whole ${mC} tile, so ${mC} is not cut.`],
+  ];
+
+  // What each matrix's current piece is called at each level: [name, note].
+  const PIECES = [
+    { C: ["C", ""], A: ["A", ""], B: ["B", ""] },
+    { C: ["C panel", ""], A: ["A panel", ""], B: ["all of B", "not cut"] },
+    { C: ["C panel", "not cut · accumulates"], A: [tl("A"), "packed into <strong>L3</strong>"], B: ["B panel", ""] },
+    { C: ["C block", ""], A: [tl("A"), "not cut · reused"], B: [tl("B"), "packed into <strong>L2</strong>"] },
+    { C: ["C strip", ""], A: [tl("A") + " micro-panel", "stays in <strong>L1</strong>"], B: [tl("B"), "not cut · reused"] },
+    { C: ["C tile", "held in <strong>registers</strong>"], A: [tl("A") + " micro-panel", "not cut · reused"], B: [tl("B") + " micro-panel", "streams from <strong>L2</strong>"] },
+    { C: ["C tile", "not cut · in <strong>registers</strong>"], A: [`column ${it("p")} of ` + tl("A"), sb("m", "r") + " values"], B: [`row ${it("p")} of ` + tl("B"), sb("n", "r") + " values"] },
+  ];
+
+  // lvl: clickable line that selects that level.  in: body line of that level.
+  const CODE = [
+    { lvl: 0, src: '<span class="cm">// C += A · B</span>', tag: "" },
+    { lvl: 1, src: "for ic = 0 to m step mc:", tag: "loop 5" },
+    { lvl: 2, src: "  for pc = 0 to k step kc:", tag: "loop 4" },
+    { in: 2,  src: `    pack ${cA}[ic:ic+mc, pc:pc+kc] → ${ctA}`, tag: `${tl("A")} → <strong>L3</strong>` },
+    { lvl: 3, src: "    for jc = 0 to n step nc:", tag: "macro-kernel" },
+    { in: 3,  src: `      pack ${cB}[pc:pc+kc, jc:jc+nc] → ${ctB}`, tag: `${tl("B")} → <strong>L2</strong>` },
+    { lvl: 4, src: "      for ir = 0 to mc step mr:", tag: "loop 2" },
+    { lvl: 5, src: "        for jr = 0 to nc step nr:", tag: "loop 1" },
+    { lvl: 6, src: "          for p = 0 to kc:", tag: "micro-kernel" },
+    { in: 6,  src: `            ${cC}[ic+ir : ic+ir+mr, jc+jr : jc+jr+nr]`, tag: "" },
+    { in: 6,  src: `              += ${ctA}[ir:ir+mr, p] · ${ctB}[p, jr:jr+nr]`, tag: "outer product" },
+  ];
+
+  // ---------- State ----------
+  let sel = 0;                         // 0 = no loop, 1..6 = LOOPS[sel-1]
+  const idx = LOOPS.map(() => 0);      // current iteration of every loop
+
+  // Nested pieces of one matrix, outermost first, in matrix-local px.
+  function pieces(level, name) {
+    const m = MATS[name];
+    let r = { x: 0, y: 0, w: m.w, h: m.h, ws: m.ws, hs: m.hs };
+    const layers = [{ level: -1, region: r, parent: null }];
+    for (let l = 0; l < level; l++) {
+      const cut = LOOPS[l].cuts[name];
+      if (!cut) continue;
+      const [axis, step, sym] = cut, p = r;
+      r = axis === "x"
+        ? { ...p, x: p.x + idx[l] * step, w: step, ws: sym }
+        : { ...p, y: p.y + idx[l] * step, h: step, hs: sym };
+      layers.push({ level: l, region: r, parent: p, axis, step });
+    }
+    return { layers, region: r };
+  }
+
+  const abs = (name, r) => ({ x: MATS[name].x + r.x, y: MATS[name].y + r.y, w: r.w, h: r.h });
+  const symHTML = s => s.length === 2 ? `${s[0]}<sub>${s[1]}</sub>` : s;
+  const symSVG = s => s.length === 2 ? `${s[0]}<tspan class="sub" dy="5">${s[1]}</tspan>` : s;
+
+  function sizeHTML(level, name) {
+    const r = pieces(level, name).region;
+    return `${symHTML(r.hs)} × ${symHTML(r.ws)}`;
+  }
+
+  function value(l) {
+    const L = LOOPS[l], i = idx[l];
+    if (!L.u) return `${L.v} = ${i}`;
+    return `${L.v} = ${i === 0 ? "0" : (i === 1 ? "" : i + "·") + L.u}`;
+  }
+
+  // ---------- SVG ----------
+  const svg = document.getElementById("fig");
+
+  function el(tag, attrs, parent, html) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (html != null) e.innerHTML = html;
+    parent.appendChild(e);
+    return e;
+  }
+  function setRect(e, g) {
+    e.setAttribute("x", g.x); e.setAttribute("y", g.y);
+    e.setAttribute("width", Math.max(0, g.w)); e.setAttribute("height", Math.max(0, g.h));
+  }
+  function setPos(e, g) { e.setAttribute("transform", `translate(${g.x} ${g.y})`); }
+  function setLine(e, x1, y1, x2, y2) {
+    e.setAttribute("x1", x1); e.setAttribute("y1", y1);
+    e.setAttribute("x2", x2); e.setAttribute("y2", y2);
+  }
+
+  // Dimension brackets above and to the left of each matrix's current piece.
+  function setDims(d, g) {
+    const m = d.m, x0 = g.x, x1 = g.x + g.w, yT = m.y - 16;
+    setLine(d.tl, x0, yT, x1, yT);
+    setLine(d.ta, x0, yT - 6, x0, yT + 6);
+    setLine(d.tb, x1, yT - 6, x1, yT + 6);
+    d.tt.setAttribute("x", (x0 + x1) / 2);
+    d.tt.setAttribute("y", m.y - 28);
+    const y0 = g.y, y1 = g.y + g.h, xL = m.x - 16;
+    setLine(d.ll, xL, y0, xL, y1);
+    setLine(d.la, xL - 6, y0, xL + 6, y0);
+    setLine(d.lb, xL - 6, y1, xL + 6, y1);
+    d.lt.setAttribute("x", m.x - 23);
+    d.lt.setAttribute("y", (y0 + y1) / 2 + 7);
+  }
+
+  const view = {};
+  for (const name in MATS) {
+    const m = MATS[name];
+    const g = el("g", { class: "mat mat-" + name.toLowerCase(), "data-m": name }, svg);
+    el("rect", { class: "base", x: m.x, y: m.y, width: m.w, height: m.h }, g);
+    const piecesG = el("g", {}, g);
+    const cutsG = el("g", {}, g);
+    const dg = el("g", {}, g);
+    const d = { m };
+    for (const k of ["tl", "ta", "tb", "ll", "la", "lb"]) d[k] = el("line", { class: "dim-line" }, dg);
+    d.tt = el("text", { class: "dim-label", "text-anchor": "middle" }, dg);
+    d.lt = el("text", { class: "dim-label", "text-anchor": "end" }, dg);
+    d._g = abs(name, { x: 0, y: 0, w: m.w, h: m.h });
+    el("text", { class: "name", x: m.x + m.w / 2, y: 330, "text-anchor": "middle" }, g, name);
+    view[name] = { pieces: piecesG, cuts: cutsG, dims: d, items: new Map() };
+  }
+  el("text", { class: "op", x: 400, y: 182, "text-anchor": "middle" }, svg, "=");
+  el("text", { class: "op", x: 712, y: 182, "text-anchor": "middle" }, svg, "×");
+  const hover = el("rect", { class: "hover" }, svg);
+
+  function drawCuts(g, L) {
+    const p = L.parent;
+    if (L.axis === "x") {
+      for (let x = L.step; x < p.w - 0.5; x += L.step) el("line", { x1: x, y1: 0, x2: x, y2: p.h }, g);
+    } else {
+      for (let y = L.step; y < p.h - 0.5; y += L.step) el("line", { x1: 0, y1: y, x2: p.w, y2: y }, g);
+    }
+  }
+
+  // ---------- Tweening ----------
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const DUR = 360;
+  let raf = 0;
+
+  function tween(items, dur) {
+    cancelAnimationFrame(raf);
+    if (reduceMotion.matches) dur = 0;
+    const from = items.map(([node]) => Object.assign({}, node._g));
+    const t0 = performance.now();
+    const frame = now => {
+      const t = dur ? Math.min(1, (now - t0) / dur) : 1;
+      const e = 1 - Math.pow(1 - t, 3);
+      items.forEach(([node, to, apply], k) => {
+        const f = from[k], g = {};
+        for (const key in to) g[key] = f[key] + (to[key] - f[key]) * e;
+        node._g = g;
+        apply(node, g);
+      });
+      if (t < 1) raf = requestAnimationFrame(frame);
+    };
+    frame(t0);
+  }
+
+  // ---------- HTML pieces ----------
+  const dimsLis = [...document.querySelectorAll("#dims li")];
+  dimsLis.forEach(li => {
+    const name = li.dataset.m;
+    PIECES.forEach((row, level) => {
+      const [pn, note] = row[name];
+      const d = document.createElement("div");
+      d.innerHTML = `<div class="pn">${pn}</div><div class="d">${sizeHTML(level, name)}</div><div class="w">${note || "&nbsp;"}</div>`;
+      li.appendChild(d);
+    });
+  });
+
+  const caption = document.getElementById("caption");
+  CAPTIONS.forEach(([t, p]) => {
+    const d = document.createElement("div");
+    d.innerHTML = `<div class="t">${t}</div><p>${p}</p>`;
+    caption.appendChild(d);
+  });
+
+  const code = document.getElementById("code");
+  const lines = CODE.map(c => {
+    const e = document.createElement("div");
+    e.className = "ln";
+    if (c.lvl != null) {
+      e.setAttribute("role", "button");
+      e.tabIndex = 0;
+      e.dataset.lvl = c.lvl;
+      e.addEventListener("click", () => select(c.lvl));
+    }
+    e.innerHTML = `<span class="src">${c.src}</span><span class="chip"></span>` +
+                  `<span class="tag">${c.tag ? `<span class="cm">// ${c.tag}</span>` : ""}</span>`;
+    code.appendChild(e);
+    return e;
+  });
+
+  const prevBtn = document.getElementById("prev");
+  const nextBtn = document.getElementById("next");
+  const playBtn = document.getElementById("play");
+  const readout = document.getElementById("readout");
+  const live = document.getElementById("live");
+
+  // ---------- Render ----------
+  let first = true;
+
+  function render(announce) {
+    const items = [];
+
+    for (const name in MATS) {
+      const v = view[name], P = pieces(sel, name), keep = new Set();
+
+      P.layers.forEach((L, k) => {
+        const isCur = k === P.layers.length - 1;
+        const back = abs(name, L.parent || L.region);
+
+        const rk = "r" + L.level;
+        keep.add(rk);
+        let r = v.items.get(rk);
+        if (!r) {
+          // A new piece starts as its parent and shrinks into place: the cut.
+          r = el("rect", { class: "piece" + (L.level < 0 ? " whole" : "") }, v.pieces);
+          r._g = back;
+          setRect(r, back);
+          v.items.set(rk, r);
+        }
+        r._back = back;
+        r.classList.toggle("cur", isCur);
+        r.classList.toggle("anc", !isCur);
+        items.push([r, abs(name, L.region), setRect]);
+
+        if (L.level >= 0) {
+          const ck = "c" + L.level;
+          keep.add(ck);
+          let cg = v.items.get(ck);
+          const at = { x: back.x, y: back.y };
+          if (!cg) {
+            cg = el("g", { class: "cuts" }, v.cuts);
+            drawCuts(cg, L);
+            cg._g = at;
+            setPos(cg, at);
+            v.items.set(ck, cg);
+            requestAnimationFrame(() => requestAnimationFrame(() => cg.classList.add("in")));
+          }
+          cg.classList.toggle("new", L.level === sel - 1);
+          items.push([cg, at, setPos]);
+        }
+      });
+
+      // Pieces from deeper loops that are no longer selected grow back and fade.
+      for (const [key, node] of v.items) {
+        if (keep.has(key)) continue;
+        v.items.delete(key);
+        node.classList.add("out");
+        if (node._back) items.push([node, node._back, setRect]);
+        setTimeout(() => node.remove(), DUR + 80);
+      }
+
+      const d = v.dims;
+      const tt = symSVG(P.region.ws), lt = symSVG(P.region.hs);
+      if (d.tt.innerHTML !== tt) d.tt.innerHTML = tt;
+      if (d.lt.innerHTML !== lt) d.lt.innerHTML = lt;
+      items.push([d, abs(name, P.region), setDims]);
+    }
+
+    tween(items, first ? 0 : DUR);
+    first = false;
+
+    // Piece names and sizes under the figure.
+    dimsLis.forEach(li => {
+      [...li.children].forEach((c, k) => c.classList.toggle("on", k === sel));
+      li.classList.toggle("same", sel > 0 && !LOOPS[sel - 1].cuts[li.dataset.m]);
+    });
+    [...caption.children].forEach((c, k) => c.classList.toggle("on", k === sel));
+
+    // Code: selected loop, enclosing loops with their current values, deeper lines dimmed.
+    lines.forEach((e, k) => {
+      const c = CODE[k];
+      const level = c.lvl != null ? c.lvl : c.in;
+      e.classList.toggle("sel", c.lvl === sel);
+      e.classList.toggle("anc", c.lvl != null && c.lvl > 0 && c.lvl < sel);
+      e.classList.toggle("deep", level > sel);
+      if (c.lvl != null) e.setAttribute("aria-pressed", c.lvl === sel);
+      if (c.lvl > 0) e.querySelector(".chip").textContent = c.lvl <= sel ? value(c.lvl - 1) : "";
+    });
+
+    const on = sel > 0;
+    prevBtn.disabled = nextBtn.disabled = playBtn.disabled = !on;
+    readout.textContent = on ? `${idx[sel - 1] + 1} / ${LOOPS[sel - 1].n}` : "–";
+
+    const title = caption.children[sel].querySelector(".t").textContent;
+    svg.setAttribute("aria-label", "C equals A times B. " + title);
+    if (announce) live.textContent = title;
+  }
+
+  // ---------- Interaction ----------
+  function select(level) {
+    stop();
+    if (level === sel) return;
+    sel = level;
+    hover.classList.remove("on");
+    render(true);
+  }
+
+  // Odometer step in loop-nest order: wrapping a loop carries into the one above.
+  function advance(dir) {
+    if (!sel) return;
+    for (let l = sel - 1; l >= 0; l--) {
+      const i = idx[l] + dir;
+      if (i >= 0 && i < LOOPS[l].n) { idx[l] = i; break; }
+      idx[l] = dir > 0 ? 0 : LOOPS[l].n - 1;
+    }
+    for (let l = sel; l < LOOPS.length; l++) idx[l] = 0;
+    render();
+  }
+
+  // Jump to a clicked block. Loops inside the first one that moved restart at 0.
+  function jump(set) {
+    stop();
+    const first = set.find(([l, i]) => i !== idx[l])[0];
+    for (let l = first + 1; l < LOOPS.length; l++) idx[l] = 0;
+    for (const [l, i] of set) idx[l] = i;
+    render();
+  }
+
+  let timer = 0;
+  function play() {
+    if (!sel) return;
+    advance(1);
+    timer = setInterval(() => advance(1), 800);
+    playBtn.textContent = "Pause";
+    playBtn.setAttribute("aria-pressed", "true");
+  }
+  function stop() {
+    if (!timer) return;
+    clearInterval(timer);
+    timer = 0;
+    playBtn.textContent = "Play";
+    playBtn.setAttribute("aria-pressed", "false");
+  }
+
+  prevBtn.addEventListener("click", () => { stop(); advance(-1); });
+  nextBtn.addEventListener("click", () => { stop(); advance(1); });
+  playBtn.addEventListener("click", () => (timer ? stop() : play()));
+
+  code.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const level = Math.max(0, Math.min(LOOPS.length, sel + (e.key === "ArrowDown" ? 1 : -1)));
+      select(level);
+      code.querySelector(`[data-lvl="${level}"]`).focus();
+    } else if (e.key === "Enter" || e.key === " ") {
+      const t = e.target.closest("[data-lvl]");
+      if (t) { e.preventDefault(); select(+t.dataset.lvl); }
+    }
+  });
+  const help = document.getElementById("help");
+  document.getElementById("help-open").addEventListener("click", () => { stop(); help.showModal(); });
+  document.getElementById("help-close").addEventListener("click", () => help.close());
+  help.addEventListener("click", e => { if (e.target === help) help.close(); });  // backdrop
+
+  document.addEventListener("keydown", e => {
+    if (help.open || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); stop(); advance(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); stop(); advance(-1); }
+  });
+
+  // The block under the pointer at the selected depth, and the index every
+  // loop that cuts this matrix would need to reach it.
+  function hit(e) {
+    if (!sel) return null;
+    const g = e.target.closest && e.target.closest("g[data-m]");
+    if (!g) return null;
+    const name = g.dataset.m, m = MATS[name];
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    const x = pt.x - m.x, y = pt.y - m.y;
+    if (x < 0 || x >= m.w || y < 0 || y >= m.h) return null;
+    let q = { x: 0, y: 0, w: m.w, h: m.h }, moved = false;
+    const set = [];
+    for (let l = 0; l < sel; l++) {
+      const cut = LOOPS[l].cuts[name];
+      if (!cut) continue;
+      const [axis, step] = cut;
+      const i = Math.floor((axis === "x" ? x - q.x : y - q.y) / step);
+      q = axis === "x" ? { ...q, x: q.x + i * step, w: step } : { ...q, y: q.y + i * step, h: step };
+      set.push([l, i]);
+      if (i !== idx[l]) moved = true;
+    }
+    return moved ? { set, rect: abs(name, q) } : null;
+  }
+
+  svg.addEventListener("mousemove", e => {
+    const h = hit(e);
+    svg.style.cursor = h ? "pointer" : "";
+    if (h) setRect(hover, h.rect);
+    hover.classList.toggle("on", !!h);
+  });
+  svg.addEventListener("mouseleave", () => hover.classList.remove("on"));
+  svg.addEventListener("click", e => {
+    const h = hit(e);
+    if (!h) return;
+    jump(h.set);
+    hover.classList.remove("on");
+    svg.style.cursor = "";
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
