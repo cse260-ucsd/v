@@ -86,7 +86,7 @@ h2 { font-size: 1.65rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
   margin-bottom: 14px;
 }
-.lede { font-size: 1.18rem; line-height: 1.55; margin-top: 18px; }
+.prose .lede { font-size: 1.18rem; line-height: 1.55; margin-top: 24px; }
 section { margin-top: 56px; }
 
 code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunken); border-radius: 4px; padding: 0.08em 0.32em; }
@@ -259,7 +259,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .track i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--line-strong); transition: width 0.4s; }
 .m-row.now .track i { background: var(--ink); }
 
-.pager { margin-top: 48px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
+.pager { margin-bottom: 32px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
 .pager a { text-decoration: none; }
 .pager a:hover { text-decoration: underline; }
 
@@ -271,8 +271,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 <body>
 <main class="page">
 
+  <nav class="pager">
+    <a href="cutlass-visualization-v2-coalescing.html">← Part 2: Coalesced loads</a>
+  </nav>
+
   <header class="prose">
-    <div class="eyebrow">CUTLASS, step by step · Part 3</div>
     <h1>Shared memory tiling</h1>
     <p class="lede">
       <span class="term" data-tip="smem">Shared memory</span> <span class="term" data-tip="cache">tiling</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles small enough
@@ -328,23 +331,6 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
       </div>
     </div>
   </div>
-
-  <section>
-    <div class="prose">
-      <h2>What changed</h2>
-      <p>
-        Part 2's kernel asked global memory for every number it used: 1,024 reads in all.
-        Now each number comes from global memory once per block and is then read by 4 threads from shared memory: 256 reads, 4 times fewer.
-      </p>
-      <p>
-        The saving equals the tile width. Real kernels use tiles of 32 × 32 or more, so they save more.
-        The price is two <span class="term" data-tip="sync1">sync()</span> barriers per tile.
-      </p>
-    </div>
-    <nav class="pager">
-      <a href="cutlass-visualization-v2-coalescing.html">← Part 2: Coalesced loads</a>
-    </nav>
-  </section>
 
 </main>
 <div class="tip" id="tip" hidden></div>
