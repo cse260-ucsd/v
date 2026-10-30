@@ -1,7 +1,16 @@
-# CUTLASS, step by step
+# Implementation of optimized matrix multiplication
 
-Self-contained interactive HTML pages (no build step) teaching GPU matrix multiply.
-Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-naive`) → Part 2 (`-shared-memory-tiling`), linked by each page's pager.
+Self-contained interactive HTML pages (no build step) teaching matrix multiply for CPU and GPU.
+
+## GotoBLAS
+
+- `gotoblas.html`
+
+## CUDA
+
+- `cutlass-visualization-v2-intro.html`
+- `cutlass-visualization-v2-naive.html` (Part 1)
+- `cutlass-visualization-v2-shared-memory-tiling.html` (Part 2)
 
 ## Decisions
 
