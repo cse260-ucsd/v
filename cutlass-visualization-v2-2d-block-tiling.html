@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2D Block Tiling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
+<style>
+/* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
+   toolbar + follow switch → step timeline → one-line caption → picture | pseudo-code and read counts.
+   The picture is Part 3's, grown: global memory (16 × 16 A, B, C) beside one block on the chip (its 8 × 4 As and 4 × 8 Bs around its threads).
+   Each thread is now a 2 × 2 box: one slot per sum, an orange dot per a on the left edge, a green dot per b on the top edge.
+   A, B and C keep the same colors as Parts 1 to 3. */
+:root {
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --sunken: #eef0f4;
+  --ink: #141821;
+  --muted: #586071;
+  --line: #d6dae2;
+  --line-strong: #8d95a5;
+
+  --a: #d0640f;  --a-ink: #a24a06;  --on-a: #ffffff;
+  --b: #0d8a62;  --b-ink: #07704e;  --on-b: #ffffff;
+  --c: #0f6fc0;  --c-ink: #0b5ea6;
+
+  --p0: 6%; --p1: 15%; --p2: 32%;
+  --a-0: color-mix(in srgb, var(--a) var(--p0), var(--surface));
+  --a-1: color-mix(in srgb, var(--a) var(--p1), var(--surface));
+  --a-2: color-mix(in srgb, var(--a) var(--p2), var(--surface));
+  --b-0: color-mix(in srgb, var(--b) var(--p0), var(--surface));
+  --b-1: color-mix(in srgb, var(--b) var(--p1), var(--surface));
+  --b-2: color-mix(in srgb, var(--b) var(--p2), var(--surface));
+  --c-1: color-mix(in srgb, var(--c) var(--p1), var(--surface));
+  --c-2: color-mix(in srgb, var(--c) var(--p2), var(--surface));
+  --hl: color-mix(in srgb, var(--ink) 9%, transparent);
+  --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
+
+  --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+    --line: #2b313c; --line-strong: #5d6676;
+    --a: #ee8a3c; --a-ink: #f6ad70; --on-a: #1d0e02;
+    --b: #33bb8b; --b-ink: #6ad6ad; --on-b: #03170f;
+    --c: #4b9fe3; --c-ink: #82c0f2;
+    --p0: 9%; --p1: 20%; --p2: 40%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+  --line: #2b313c; --line-strong: #5d6676;
+  --a: #ee8a3c; --a-ink: #f6ad70; --on-a: #1d0e02;
+  --b: #33bb8b; --b-ink: #6ad6ad; --on-b: #03170f;
+  --c: #4b9fe3; --c-ink: #82c0f2;
+  --p0: 9%; --p1: 20%; --p2: 40%;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--font-body); }
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.prose { max-width: 68ch; }
+.prose p { margin: 0 0 1em; }
+a { color: var(--c-ink); }
+
+h1 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+.prose .lede { font-size: 1.18rem; line-height: 1.55; margin-top: 24px; }
+
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunken); border-radius: 4px; padding: 0.08em 0.32em; }
+.vA { color: var(--a-ink); font-weight: 700; }
+.vB { color: var(--b-ink); font-weight: 700; }
+.vC { color: var(--c-ink); font-weight: 700; }
+.term { text-decoration: underline dotted var(--line-strong); text-decoration-thickness: 2px; text-underline-offset: 4px; cursor: help; }
+
+/* figure frame */
+.fig { margin: 28px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.fig-top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.btn {
+  font: 600 0.88rem var(--font-body); color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+}
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:hover:not(:disabled) { background: var(--sunken); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); min-width: 92px; justify-content: center; }
+.btn.primary:hover { background: var(--ink); opacity: 0.88; }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn:focus-visible, .seg button:focus-visible, .ts:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+
+.switch { display: flex; align-items: center; gap: 10px; }
+.switch .lbl { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--line); }
+.seg button {
+  padding: 6px 12px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+  font: 700 0.86rem var(--font-mono); color: var(--muted);
+}
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
+
+/* step timeline: the loop's shape at a glance */
+.tl-bar { padding: 10px 16px 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.timeline { display: flex; align-items: flex-start; gap: 6px; width: max-content; margin: 0 auto; }
+.tl-tile { display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
+.tl-row { display: flex; align-items: center; gap: 2px; }
+.tl-cap {
+  font: 700 0.7rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  text-align: center; border-top: 2px solid var(--line); padding-top: 2px; margin: 0 2px;
+}
+.ts {
+  height: 30px; min-width: 32px; padding: 0 6px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  font: 700 0.78rem var(--font-mono); cursor: pointer;
+}
+.ts:hover { color: var(--ink); border-color: var(--line-strong); }
+.ts.done { background: var(--sunken); color: var(--ink); }
+.ts.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.tl-sync { width: 9px; height: 30px; cursor: help; position: relative; flex: none; }
+.tl-sync::before, .tl-sync::after { content: ""; position: absolute; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--line-strong); }
+.tl-sync::before { left: 2px; } .tl-sync::after { left: 5px; }
+
+.narration {
+  padding: 11px 16px; min-height: 3.4em;
+  border-bottom: 1px solid var(--line); background: var(--sunken);
+  font-size: 1.02rem; line-height: 1.55;
+}
+.narration code { background: var(--surface); }
+.src-ref { border: 1.6px dashed var(--ink); border-radius: 6px; padding: 0 4px; white-space: nowrap; }
+
+.fig-body { display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: start; }
+.stage { padding: 16px 12px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.side { padding: 16px; border-left: 1px solid var(--line); min-width: 0; }
+@media (max-width: 940px) {
+  .fig-body { grid-template-columns: minmax(0, 1fr); }
+  .side { border-left: 0; border-top: 1px solid var(--line); }
+}
+svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-action: manipulation; }
+
+/* cells */
+.cell .hit { fill: transparent; }
+.cell .bg { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+.cell text {
+  font: 600 11px var(--font-mono); fill: var(--muted);
+  text-anchor: middle; dominant-baseline: central; pointer-events: none;
+}
+.cell .flash { fill: var(--c); opacity: 0; pointer-events: none; }
+.cell.as .flash { fill: var(--a); }
+.cell.bs .flash { fill: var(--b); }
+.cell.pulse .flash { animation: flash 0.6s ease-out; }
+@keyframes flash { from { opacity: 0.45; } to { opacity: 0; } }
+
+.cell.a .bg { fill: var(--a-0); }
+.cell.b .bg { fill: var(--b-0); }
+.cell.a.strip .bg { fill: var(--a-1); }
+.cell.b.strip .bg { fill: var(--b-1); }
+.cell.a.need .bg { fill: var(--a-2); }
+.cell.b.need .bg { fill: var(--b-2); }
+.cell.a.cur .bg { fill: var(--a); stroke: var(--a); }
+.cell.b.cur .bg { fill: var(--b); stroke: var(--b); }
+.cell.c, .cell.th { cursor: pointer; }
+.cell.c.alt .bg { fill: var(--sunken); }
+.cell.c.stored .bg { fill: var(--c-2); stroke: var(--c); }
+
+.cell.as .bg { fill: var(--a-1); stroke: color-mix(in srgb, var(--a) 45%, var(--surface)); }
+.cell.bs .bg { fill: var(--b-1); stroke: color-mix(in srgb, var(--b) 45%, var(--surface)); }
+.cell.as.empty .bg, .cell.bs.empty .bg { fill: var(--surface); stroke: var(--line-strong); stroke-dasharray: 3 3; }
+.cell.stale { opacity: 0.3; }
+.cell.as.cur .bg { fill: var(--a); stroke: var(--a); }
+.cell.bs.cur .bg { fill: var(--b); stroke: var(--b); }
+.cell.as.tgt .bg { stroke: var(--a-ink); stroke-width: 3; }
+.cell.bs.tgt .bg { stroke: var(--b-ink); stroke-width: 3; }
+.cell.th .bg { fill: var(--surface); stroke: color-mix(in srgb, var(--c) 55%, var(--surface)); }
+.cell.th .slot { fill: var(--surface); stroke: var(--line); pointer-events: none; }
+.cell.th .fill { fill: var(--c-1); pointer-events: none; transition: y 0.3s, height 0.3s; }
+.cell.th.done .fill { fill: var(--c-2); }
+.cell.th.wait .bg { stroke: var(--line-strong); stroke-dasharray: 4 3; }
+.cell.th .pill { fill: var(--surface); stroke: var(--line); pointer-events: none; }
+.cell.th.word text { font-weight: 700; fill: var(--ink); }
+.cell.th .reg { visibility: hidden; pointer-events: none; stroke: var(--surface); stroke-width: 1.5; }
+.cell.th .reg.a { fill: var(--a); }
+.cell.th .reg.b { fill: var(--b); }
+.cell.th.regs .reg { visibility: visible; }
+.cell.hl .bg { stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: none; }
+.cell.hl-src .bg { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 3 3; }
+
+.tile-fr { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 4 3; pointer-events: none; }
+.tile-fr.a.on { stroke: var(--a-ink); stroke-width: 3; stroke-dasharray: none; }
+.tile-fr.b.on { stroke: var(--b-ink); stroke-width: 3; stroke-dasharray: none; }
+.blk-fr, .grp-mark { fill: none; stroke: var(--ink); stroke-width: 2.5; pointer-events: none; }
+.grp-mark.block { stroke-width: 3; }
+.src-mark { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 3 3; pointer-events: none; }
+.tag { font: 600 11px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
+.tag.end { text-anchor: end; }
+.tag.on { fill: var(--ink); font-weight: 700; }
+.mname { font: 800 20px var(--font-display); }
+.mname.a { fill: var(--a-ink); } .mname.b { fill: var(--b-ink); } .mname.c { fill: var(--c-ink); }
+.end { text-anchor: end; }
+.vt { font: 700 15px var(--font-display); fill: var(--ink); cursor: help; }
+.vs { font: 12px var(--font-body); fill: var(--muted); }
+.sync-txt { font: 700 12px var(--font-mono); fill: var(--ink); }
+.view .ab { transition: opacity 0.3s; }
+.view.idle .ab { opacity: 0.35; }
+.dots { pointer-events: none; }
+.dot.a { fill: var(--a); } .dot.b { fill: var(--b); } .dot.c { fill: var(--c); }
+.dot.faint { opacity: 0.25; }
+
+.tip {
+  position: fixed; z-index: 10; pointer-events: none;
+  background: var(--ink); color: var(--bg);
+  font-size: 0.84rem; line-height: 1.45; padding: 7px 10px; border-radius: 7px;
+  max-width: 300px; width: max-content; box-shadow: 0 4px 14px var(--shadow);
+}
+.tip .vA, .tip .vB, .tip .vC { color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+.tip .vA { text-decoration-color: var(--a); } .tip .vB { text-decoration-color: var(--b); } .tip .vC { text-decoration-color: var(--c); }
+.tip code { background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; }
+
+/* code */
+.panel-h { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.code {
+  font: 12.5px/1.75 var(--font-mono); background: var(--sunken); border-radius: 8px;
+  padding: 8px 0; overflow-x: auto;
+}
+.code .ln { display: block; white-space: pre; padding: 0 14px; transition: background 0.15s; cursor: help; }
+.code .ln:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code .ln.on { background: var(--hl); box-shadow: inset 3px 0 0 var(--ink); }
+.code .ln.near { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.code .kw { font-weight: 700; }
+.code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
+.code .live:empty { display: none; }
+
+/* read counts: two meters under the pseudo-code, each label above its bar */
+.meter { cursor: help; margin-top: 18px; }
+.m-row { display: grid; grid-template-columns: minmax(0, 1fr) 3em; align-items: center; gap: 2px 10px; font-size: 0.9rem; color: var(--muted); }
+.m-row > span:first-child { grid-column: 1 / -1; }
+.m-row + .m-row { margin-top: 8px; }
+.m-row .num { font: 700 0.9rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.m-row.now { color: var(--ink); font-weight: 600; }
+.track { height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
+.track i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--line-strong); transition: width 0.4s; }
+.m-row.now .track i { background: var(--ink); }
+
+.pager { margin-bottom: 32px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
+.pager a { text-decoration: none; }
+.pager a:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <nav class="pager">
+    <a href="cutlass-visualization-v2-1d-block-tiling.html">← Part 3: 1D block tiling</a>
+  </nav>
+
+  <header class="prose">
+    <h1>2D block tiling</h1>
+    <p class="lede">
+      <span class="term" data-tip="tiling">2D block tiling</span> gives each thread a 2 × 2 square of <span class="vC">C</span>.
+      At every step it reads 2 numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span> into <span class="term" data-tip="reg">registers</span> and multiplies each <span class="vA">a</span> by each <span class="vB">b</span>, so every number it reads is used twice.
+      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, which halves its copies from global memory per number of <span class="vC">C</span>. The matrices grow to 16 × 16 to make room for 4 blocks.
+    </p>
+  </header>
+
+  <div class="fig" id="fig">
+    <div class="fig-top">
+      <div class="switch">
+        <span class="lbl">Follow</span>
+        <div class="seg" id="seg-level" role="radiogroup" aria-label="Follow one thread, warp or block">
+          <button role="radio" data-level="thread">Thread</button>
+          <button role="radio" data-level="warp">Warp</button>
+          <button role="radio" data-level="block">Block</button>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn icon" data-act="restart" aria-label="Restart"><svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 7.3l1.4-.5A4 4 0 1 0 5 5.2L6.8 7H2V2.2l1.9 1.9A5.5 5.5 0 0 1 8 2.5z"/></svg></button>
+        <button class="btn icon" data-act="back" aria-label="Previous step"><svg viewBox="0 0 16 16"><path d="M10.5 2.5 5 8l5.5 5.5 1-1L7 8l4.5-4.5z"/></svg></button>
+        <button class="btn primary" data-act="play"></button>
+        <button class="btn icon" data-act="next" aria-label="Next step"><svg viewBox="0 0 16 16"><path d="M5.5 2.5 11 8l-5.5 5.5-1-1L9 8 4.5 3.5z"/></svg></button>
+      </div>
+    </div>
+    <div class="tl-bar"><div class="timeline" id="timeline" role="group" aria-label="Steps"></div></div>
+    <div class="narration" id="narr" aria-live="polite"></div>
+    <div class="fig-body">
+      <div class="stage">
+        <svg class="pic" id="pic" role="img" aria-label="Left: 16 by 16 matrices A, B and C in global memory. Right: one block's shared tiles As (8 by 4) and Bs (4 by 8) around its 16 threads, each holding a 2 by 2 square of sums of C."></svg>
+      </div>
+      <div class="side">
+        <div class="code" id="code" aria-label="Kernel pseudo-code">
+          <span class="ln" data-id="head"><span class="kw">kernel</span> matmul_2d(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N):</span>
+          <span class="ln" data-id="shared">  <span class="kw">shared</span> <span class="vA">As</span>[8][4], <span class="vB">Bs</span>[4][8]</span>
+          <span class="ln" data-id="tid">  tx, ty = threadIdx.x, threadIdx.y</span>
+          <span class="ln" data-id="r">  r = blockIdx.y · 8</span>
+          <span class="ln" data-id="c">  c = blockIdx.x · 8</span>
+          <span class="ln" data-id="rowcol">  row, col = r + 2ty, c + 2tx</span>
+          <span class="ln" data-id="acc">  acc[0..1][0..1] = 0</span>
+          <span class="ln" data-id="tile">  <span class="kw">for</span> t <span class="kw">in</span> 0 .. N/4 − 1:<span class="live" id="live-t"></span></span>
+          <span class="ln" data-id="hload">    <span class="kw">for</span> h <span class="kw">in</span> 0 .. 1:</span>
+          <span class="ln" data-id="ij">      i, j = 4h + ty, 4h + tx</span>
+          <span class="ln" data-id="ldA">      <span class="vA">As</span>[i][tx] = <span class="vA">A</span>[r + i][4t + tx]</span>
+          <span class="ln" data-id="ldB">      <span class="vB">Bs</span>[ty][j] = <span class="vB">B</span>[4t + ty][c + j]</span>
+          <span class="ln" data-id="sync1">    sync()</span>
+          <span class="ln" data-id="kloop">    <span class="kw">for</span> k <span class="kw">in</span> 0 .. 3:<span class="live" id="live-k"></span></span>
+          <span class="ln" data-id="a">      <span class="vA">a</span>[0..1] = <span class="vA">As</span>[2ty + 0..1][k]</span>
+          <span class="ln" data-id="b">      <span class="vB">b</span>[0..1] = <span class="vB">Bs</span>[k][2tx + 0..1]</span>
+          <span class="ln" data-id="mn">      <span class="kw">for</span> m, n <span class="kw">in</span> 0 .. 1:<span class="live" id="live-mn"></span></span>
+          <span class="ln" data-id="fma">        acc[m][n] += <span class="vA">a</span>[m] · <span class="vB">b</span>[n]</span>
+          <span class="ln" data-id="sync2">    sync()</span>
+          <span class="ln" data-id="st">  <span class="kw">for</span> m, n <span class="kw">in</span> 0 .. 1:</span>
+          <span class="ln" data-id="st1">    <span class="vC">C</span>[row + m][col + n] = acc[m][n]</span>
+        </div>
+        <div class="meter" data-tip="meter-s">
+          <div class="panel-h" id="ms-head"></div>
+          <div class="m-row now"><span>2 × 2 numbers of C per thread</span><div class="track"><i id="bs-0"></i></div><span class="num" id="ms-0"></span></div>
+          <div class="m-row"><span>2 per thread (Part 3)</span><div class="track"><i id="bs-1"></i></div><span class="num" id="ms-1"></span></div>
+          <div class="m-row"><span>1 per thread (Part 2)</span><div class="track"><i id="bs-2"></i></div><span class="num" id="ms-2"></span></div>
+        </div>
+        <div class="meter" data-tip="meter-g">
+          <div class="panel-h" id="mg-head"></div>
+          <div class="m-row now"><span>8 × 8 numbers of C per block</span><div class="track"><i id="bg-0"></i></div><span class="num" id="mg-0"></span></div>
+          <div class="m-row"><span>4 × 4 per block (Parts 2 and 3)</span><div class="track"><i id="bg-1"></i></div><span class="num" id="mg-1"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const N = 16, BM = 8, BN = 8, BK = 4, TILES = N / BK;   // N×N matrices; a block covers BM × BN of C and walks k in tiles BK wide
+  const TM = 2, TN = 2, TX = BN / TN, TY = BM / TM;        // each thread computes a TM × TN square of C, so a block is TX × TY threads
+  const NBX = N / BN;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // memory doesn't answer every request equally fast, so each copy lands at its own time
+  let seed = 2600;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const lags = (h, w) => Array.from({ length: h }, () => Array.from({ length: w }, rnd));
+  const LAG = Array.from({ length: TILES }, () => ({ a: lags(BM, BK), b: lags(BK, BN) }));
+
+  // ---------- steps: setup · per tile: load, then k = 0..BK-1 · store ----------
+  const STEPS = [{ kind: 'setup' }];
+  for (let t = 0; t < TILES; t++) {
+    STEPS.push({ kind: 'load', t });
+    for (let k = 0; k < BK; k++) STEPS.push({ kind: 'fma', t, k, kg: t * BK + k });
+  }
+  STEPS.push({ kind: 'store' });
+  const LAST = STEPS.length - 1;
+  function progress(pos) {                         // after step pos: the tile in shared memory, k's summed
+    let tile = -1, kDone = 0;
+    for (let i = 0; i <= pos; i++) {
+      const s = STEPS[i];
+      if (s.kind === 'load') tile = s.t;
+      if (s.kind === 'fma') kDone = s.kg + 1;
+    }
+    return { tile, kDone };
+  }
+
+  // ---------- who we follow ----------
+  // Thread (tx, ty) computes rows TM·ty .. and columns TN·tx .. of its block. A warp is one row of threads.
+  let level = 'block';
+  const anchor = { bx: 1, by: 0, tx: 2, ty: 1 };  // a thread; its warp and block follow from it
+  const SIZE = { thread: 1, warp: TX, block: TX * TY };
+  const inGroup = (tx, ty) => level === 'block' || (ty === anchor.ty && (level === 'warp' || tx === anchor.tx));
+  const R0 = () => anchor.by * BM, C0 = () => anchor.bx * BN;
+  const warpNo = (bx, by, ty) => (by * NBX + bx) * TY + ty;
+  const blockName = () => `block (${anchor.bx}, ${anchor.by})`;
+  const rowsOf = (ty) => Array.from({ length: TM }, (_, m) => TM * ty + m);   // rows of its block a thread computes
+  const colsOf = (tx) => Array.from({ length: TN }, (_, n) => TN * tx + n);   // and columns
+  // each tile is copied in two halves h, each a 4 × 4 square copied as in Part 2: one row per warp
+  const copierA = (i, j) => [j, i % TY];           // As[i][j], i = 4h + ty, is copied by thread (j, i mod 4)
+  const copierB = (i, j) => [j % TX, i];           // Bs[i][j], j = 4h + tx, is copied by thread (j mod 4, i)
+  function group() {
+    const out = [];
+    for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) if (inGroup(tx, ty)) out.push([tx, ty]);
+    return out;
+  }
+  function groupName() {
+    if (level === 'thread') return `thread (${anchor.tx}, ${anchor.ty})`;
+    if (level === 'warp') return `warp ${warpNo(anchor.bx, anchor.by, anchor.ty)}`;
+    return blockName();
+  }
+
+  // ---------- picture: global memory left, one block on the chip right ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const $ = (s) => document.querySelector(s);
+  const toggle = (node, name, on) => node.classList.toggle(name, !!on);
+  const text = (parent, x, y, s, cls) => { const t = el('text', { x, y, class: cls }, parent); t.textContent = s; return t; };
+  const setBox = (node, b) => { for (const k in b) node.setAttribute(k, b[k]); };
+
+  // both views are the same cross as Part 1: left operand left, top operand on top, result bottom right
+  const GL = { cell: 11, gap: 12 };
+  GL.m = N * GL.cell; GL.size = 2 * GL.m + GL.gap;
+  GL.A = [0, GL.m + GL.gap]; GL.B = [GL.m + GL.gap, 0]; GL.C = [GL.m + GL.gap, GL.m + GL.gap];
+  const SH = { cell: 40, gap: 12, reg: 5 };        // reg: how far a register's dot sits in from its thread's edge
+  SH.k = BK * SH.cell; SH.size = SH.k + SH.gap + BN * SH.cell;   // BM = BN, so the view is square
+  SH.A = [0, SH.k + SH.gap]; SH.B = [SH.k + SH.gap, 0]; SH.T = [SH.k + SH.gap, SH.k + SH.gap];
+
+  const svg = $('#pic');
+  const vG = el('g', { class: 'view' }, svg);
+  const vS = el('g', { class: 'view' }, svg);
+  const dots = el('g', { class: 'dots' }, svg);
+
+  function cell(parent, kind, x, y, size, i, j) {
+    const g = el('g', { class: `cell ${kind}`, transform: `translate(${x} ${y})` }, parent);
+    const rx = size > 30 ? 5 : 3;
+    el('rect', { class: 'hit', width: size, height: size }, g);   // covers the gap to the next cell, so hover doesn't drop out between cells
+    el('rect', { class: 'bg', x: 1, y: 1, width: size - 2, height: size - 2, rx }, g);
+    el('rect', { class: 'flash', x: 1, y: 1, width: size - 2, height: size - 2, rx }, g);
+    Object.assign(g.dataset, { kind, i, j });
+    return g;
+  }
+  // a thread: a TM × TN box with one slot per sum, a dot per a on its left edge and per b on its top edge, and a pill for its label or a word
+  function threadBox(parent, x, y, tx, ty) {
+    const c = SH.cell, w = TN * c, h = TM * c;
+    const g = el('g', { class: 'cell th', transform: `translate(${x} ${y})` }, parent);
+    el('rect', { class: 'hit', width: w, height: h }, g);
+    el('rect', { class: 'bg', x: 1, y: 1, width: w - 2, height: h - 2, rx: 6 }, g);
+    g.fills = [];                                  // g.fills[TN·m + n] is acc[m][n]
+    for (let m = 0; m < TM; m++) for (let n = 0; n < TN; n++) {
+      el('rect', { class: 'slot', x: n * c + 4, y: m * c + 4, width: c - 8, height: c - 8, rx: 4 }, g);
+      g.fills.push(el('rect', { class: 'fill', x: n * c + 4, y: (m + 1) * c - 4, width: c - 8, height: 0, rx: 4 }, g));
+    }
+    el('rect', { class: 'flash', x: 1, y: 1, width: w - 2, height: h - 2, rx: 6 }, g);
+    for (let m = 0; m < TM; m++) el('circle', { class: 'reg a', cx: SH.reg, cy: (m + 0.5) * c, r: 4.5 }, g);
+    for (let n = 0; n < TN; n++) el('circle', { class: 'reg b', cx: (n + 0.5) * c, cy: SH.reg, r: 4.5 }, g);
+    g.pill = el('rect', { class: 'pill', y: h / 2 - 8, height: 16, rx: 8 }, g);
+    g.t = el('text', { x: w / 2, y: h / 2 + 0.5 }, g);
+    Object.assign(g.dataset, { kind: 'th', i: ty, j: tx });
+    return g;
+  }
+
+  // global memory
+  const gAB = el('g', { class: 'ab' }, vG);
+  const PA = [], PB = [], PC = [];
+  for (let i = 0; i < N; i++) {
+    PA.push([]); PB.push([]); PC.push([]);
+    for (let j = 0; j < N; j++) {
+      PA[i].push(cell(gAB, 'a', GL.A[0] + j * GL.cell, GL.A[1] + i * GL.cell, GL.cell, i, j));
+      PB[i].push(cell(gAB, 'b', GL.B[0] + j * GL.cell, GL.B[1] + i * GL.cell, GL.cell, i, j));
+      const c = cell(vG, 'c', GL.C[0] + j * GL.cell, GL.C[1] + i * GL.cell, GL.cell, i, j);
+      toggle(c, 'alt', (Math.floor(i / BM) + Math.floor(j / BN)) % 2);   // checkerboard of blocks
+      PC[i].push(c);
+    }
+  }
+  const frA = [], frB = [], tagA = [], tagB = [];
+  for (let t = 0; t < TILES; t++) {
+    frA.push(el('rect', { class: 'tile-fr a', rx: 4 }, gAB));
+    frB.push(el('rect', { class: 'tile-fr b', rx: 4 }, gAB));
+    tagA.push(text(vG, GL.A[0] + (t * BK + BK / 2) * GL.cell, GL.A[1] - 8, `t=${t}`, 'tag'));
+    tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * BK + BK / 2) * GL.cell, `t=${t}`, 'tag end'));
+  }
+  const blkFr = el('rect', { class: 'blk-fr', rx: 4 }, vG);
+  const markG = el('rect', { class: 'grp-mark', rx: 6 }, vG);
+  const hoverG = el('rect', { class: 'grp-mark', rx: 6, visibility: 'hidden' }, vG);   // hovering C outlines a thread, warp or block, as followed
+  text(vG, 0, 14, 'Global memory', 'vt').dataset.tip = 'global';
+  text(vG, 0, 32, 'off chip · slow to reach', 'vs');
+  text(vG, GL.B[0] + GL.m + 8, 16, 'B', 'mname b');
+  text(vG, GL.A[0], GL.A[1] + GL.m + 24, 'A', 'mname a');
+  text(vG, GL.C[0] + GL.m, GL.C[1] + GL.m + 24, 'C', 'mname c end');
+
+  // the followed block: its shared tiles around its threads
+  const SA = [], SB = [], TH = [];
+  for (let i = 0; i < BM; i++) {
+    SA.push([]);
+    for (let j = 0; j < BK; j++) SA[i].push(cell(vS, 'as', SH.A[0] + j * SH.cell, SH.A[1] + i * SH.cell, SH.cell, i, j));
+  }
+  for (let i = 0; i < BK; i++) {
+    SB.push([]);
+    for (let j = 0; j < BN; j++) SB[i].push(cell(vS, 'bs', SH.B[0] + j * SH.cell, SH.B[1] + i * SH.cell, SH.cell, i, j));
+  }
+  for (let ty = 0; ty < TY; ty++) {
+    TH.push([]);
+    for (let tx = 0; tx < TX; tx++) TH[ty].push(threadBox(vS, SH.T[0] + TN * tx * SH.cell, SH.T[1] + TM * ty * SH.cell, tx, ty));   // TH[ty][tx]
+  }
+  const kTagA = text(vS, 0, SH.A[1] - 8, '', 'tag on');
+  const kTagB = text(vS, SH.B[0] - 6, 0, '', 'tag on end');
+  const srcMarks = [0, 1, 2, 3].map(() => el('rect', { class: 'src-mark', rx: 9 }, vS));
+  const markS = el('rect', { class: 'grp-mark', rx: 7 }, vS);
+  const blkTitle = text(vS, 0, 14, '', 'vt');
+  blkTitle.dataset.tip = 'chip';
+  text(vS, 0, 32, 'on chip · fast to reach', 'vs');
+  text(vS, 0, 48, 'As, Bs: shared memory', 'vs');
+  text(vS, 0, 64, 'acc, a, b: registers', 'vs');
+  const syncTxt = text(vS, 0, SH.k - 10, '', 'sync-txt');
+  text(vS, SH.B[0] + BN * SH.cell + 8, 16, 'Bs', 'mname b');
+  text(vS, SH.A[0], SH.A[1] + BM * SH.cell + 24, 'As', 'mname a');
+
+  // side by side when there's room, stacked on narrow screens
+  let L = null;
+  function layout(wide) {
+    const gl = wide ? [6, 6 + SH.size - GL.size] : [6 + (SH.size - GL.size) / 2 + 20, 6];
+    const sh = wide ? [gl[0] + GL.size + 56, 6] : [26, gl[1] + GL.size + 64];
+    const w = wide ? sh[0] + SH.size + 36 : SH.size + 66;
+    const h = (wide ? 6 + SH.size : sh[1] + SH.size) + 30;
+    L = { gl, sh, wide };
+    vG.setAttribute('transform', `translate(${gl[0]} ${gl[1]})`);
+    vS.setAttribute('transform', `translate(${sh[0]} ${sh[1]})`);
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  }
+  const at = (view, origin, size) => (i, j) => [L[view][0] + origin[0] + (j + 0.5) * size, L[view][1] + origin[1] + (i + 0.5) * size];
+  const thAt = (ty, tx) => [L.sh[0] + SH.T[0] + TN * tx * SH.cell, L.sh[1] + SH.T[1] + TM * ty * SH.cell];   // top-left of thread (tx, ty)
+  const P = {
+    a: at('gl', GL.A, GL.cell), b: at('gl', GL.B, GL.cell), c: at('gl', GL.C, GL.cell),
+    as: at('sh', SH.A, SH.cell), bs: at('sh', SH.B, SH.cell),
+    acc: at('sh', SH.T, SH.cell),                  // acc[m][n] of thread (tx, ty) sits at row TM·ty + m, column TN·tx + n
+    ra: (ty, tx, m) => { const [x, y] = thAt(ty, tx); return [x + SH.reg, y + (m + 0.5) * SH.cell]; },   // a[m]: left edge of row m
+    rb: (ty, tx, n) => { const [x, y] = thAt(ty, tx); return [x + (n + 0.5) * SH.cell, y + SH.reg]; },   // b[n]: top edge of column n
+  };
+  function box(origin, size, cells, inset) {      // cells: [[i, j], ...]
+    const is = cells.map((c) => c[0]), js = cells.map((c) => c[1]);
+    const i0 = Math.min(...is), i1 = Math.max(...is), j0 = Math.min(...js), j1 = Math.max(...js);
+    return { x: origin[0] + j0 * size + inset, y: origin[1] + i0 * size + inset,
+      width: (j1 - j0 + 1) * size - 2 * inset, height: (i1 - i0 + 1) * size - 2 * inset };
+  }
+  const thCells = (threads) => threads.flatMap(([tx, ty]) => rowsOf(ty).flatMap((i) => colsOf(tx).map((j) => [i, j])));   // cells of the block that threads cover
+
+  // ---------- cell contents ----------
+  function shared(g, has, stale = false) {
+    toggle(g, 'empty', !has);
+    toggle(g, 'stale', stale);
+  }
+  function thread(g, kDone, word, regs) {         // each slot's bar fills as its sum adds more of its N products; kDone may differ per slot
+    const tx = +g.dataset.j, ty = +g.dataset.i, s = word || `${tx},${ty}`;
+    g.t.textContent = s;
+    toggle(g, 'word', word);
+    toggle(g, 'regs', regs);
+    const pw = Math.max(18, s.length * 6.6 + 12);
+    g.pill.setAttribute('x', (TN * SH.cell) / 2 - pw / 2);
+    g.pill.setAttribute('width', pw);
+    const ks = Array.isArray(kDone) ? kDone : g.fills.map(() => kDone);
+    g.fills.forEach((f, q) => {
+      const m = Math.floor(q / TN), h = (SH.cell - 8) * (ks[q] / N);
+      f.setAttribute('y', (m + 1) * SH.cell - 4 - h);
+      f.setAttribute('height', h);
+    });
+    toggle(g, 'done', ks.every((k) => k === N));
+  }
+  function pulse(nodes) {
+    nodes.forEach((g) => g.classList.remove('pulse'));
+    svg.getBoundingClientRect();                   // restart the flash on every node in the same frame
+    nodes.forEach((g) => g.classList.add('pulse'));
+  }
+  const allTH = () => TH.flat();
+  const allShared = () => [...SA.flat(), ...SB.flat()];
+
+  // ---------- code ----------
+  const codeLines = [...document.querySelectorAll('#code .ln')];
+  function codeOn(on, near = []) {
+    codeLines.forEach((ln) => { toggle(ln, 'on', on.includes(ln.dataset.id)); toggle(ln, 'near', near.includes(ln.dataset.id)); });
+  }
+  const CODE = {
+    setup: [['shared', 'r', 'c', 'rowcol', 'acc'], []],
+    load: [['hload', 'ij', 'ldA', 'ldB', 'sync1'], ['tile']],
+    fma: [['a', 'b', 'mn', 'fma'], ['tile', 'kloop']],
+    store: [['st', 'st1'], []],
+  };
+
+  // ---------- one-line caption ----------
+  const vA = (s) => `<span class="vA">${s}</span>`, vB = (s) => `<span class="vB">${s}</span>`, vC = (s) => `<span class="vC">${s}</span>`;
+  const cap = (s) => s[0].toUpperCase() + s.slice(1);
+  function narrate(s) {
+    const { tx, ty } = anchor, [i0, i1] = rowsOf(ty), [j0, j1] = colsOf(tx), r = R0() + i0, c = C0() + j0, w = warpNo(anchor.bx, anchor.by, ty);
+    const sq = vC(`C[${r}..${r + 1}][${c}..${c + 1}]`);
+    const who = ([x, y]) => (x === tx && y === ty ? 'itself' : `<span class="src-ref">thread (${x}, ${y})</span>`);   // ringed like its src-mark
+    if (s.kind === 'setup') {
+      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined ${BM} × ${BN} numbers of ${vC('C')} with ${TX * TY} threads, as many as Part 2 used for 4 × 4. Each thread keeps a ${TM} × ${TN} square of sums.`;
+      if (level === 'warp') return `<b>Warp ${w}</b> of ${blockName()} computes ${vC(`C[${r}..${r + 1}][${C0()}..${C0() + BN - 1}]`)}: ${TX} threads side by side, a ${TM} × ${TN} square each.`;
+      return `<b>Thread (${tx}, ${ty})</b> of ${blockName()} computes ${sq} in acc. It needs rows ${r} and ${r + 1} of ${vA('A')} and columns ${c} and ${c + 1} of ${vB('B')}.`;
+    }
+    if (s.kind === 'load') {
+      const k0 = s.t * BK, R = R0(), C = C0();
+      if (level === 'block') return `<b>Tile ${s.t}</b>: ${BM} × ${BK} numbers of ${vA('A')} and ${BK} × ${BN} of ${vB('B')}, twice Part 2's tiles for as many threads, so each copies 2 of each, then <code>sync()</code>.`;
+      if (level === 'warp') return `<b>Tile ${s.t}</b>: warp ${w} copies rows ${ty} and ${ty + TY} of the ${vA('A')} tile and row ${ty} of the ${vB('B')} tile, ${TX} neighbors at a time: 4 coalesced loads.`;
+      return `<b>Tile ${s.t}</b>: this thread copies ${vA(`A[${R + ty}][${k0 + tx}]`)}, ${vA(`A[${R + ty + TY}][${k0 + tx}]`)}, ${vB(`B[${k0 + ty}][${C + tx}]`)} and ${vB(`B[${k0 + ty}][${C + tx + TX}]`)}, but it will read ${TM * BK} numbers of ${vA('As')} and ${TN * BK} of ${vB('Bs')}.`;
+    }
+    if (s.kind === 'fma') {
+      const head = `<b>Tile ${s.t}, k = ${s.k}</b>`, n = TX * TY, f = TM * TN * n;
+      if (level === 'block') return `${head}: each thread reads 2 numbers of ${vA('As')} into ${vA('a')} and 2 of ${vB('Bs')} into ${vB('b')}, and multiplies each ${vA('a')} by each ${vB('b')}: ${(TM + TN) * n} shared memory reads for ${f} multiply-adds. Part 3 needs ${1.5 * f}, Part 2 ${2 * f}.`;
+      if (level === 'warp') return `${head}: all ${TX} threads of warp ${w} read the same ${vA(`As[${i0}][${s.k}]`)} and ${vA(`As[${i1}][${s.k}]`)} into ${vA('a')}, and each reads its own 2 numbers of ${vB('Bs')} into ${vB('b')}.`;
+      return `${head}: reads ${vA(`As[${i0}][${s.k}]`)} and ${vA(`As[${i1}][${s.k}]`)} into ${vA('a')}, copied by ${who(copierA(i0, s.k))} and ${who(copierA(i1, s.k))}, and ${vB(`Bs[${s.k}][${j0}]`)} and ${vB(`Bs[${s.k}][${j1}]`)} into ${vB('b')}, copied by ${who(copierB(s.k, j0))} and ${who(copierB(s.k, j1))}. Each ${vA('a')} meets each ${vB('b')}: 4 multiply-adds.`;
+    }
+    if (level === 'block') return `Every thread writes its ${TM * TN} finished sums to ${vC('C')}, once.`;
+    if (level === 'warp') return `Warp ${w} writes ${vC(`C[${r}..${r + 1}][${C0()}..${C0() + BN - 1}]`)}: 2 rows of ${BN} neighbors.`;
+    return `This thread writes its ${TM * TN} sums to ${sq}.`;
+  }
+
+  // ---------- read counts: this kernel against Parts 2 and 3, for the same numbers of C ----------
+  const bar = (id, n, max) => { $(`#m${id}`).textContent = n; $(`#b${id}`).style.width = `${(100 * n) / max}%`; };
+  function meter(pos) {
+    const { tile, kDone } = progress(pos), n = SIZE[level];
+    // shared, per k: TM + TN here; Part 3 reads 3 per 2 numbers of C, Part 2 2 per number
+    [4 * n * kDone, 6 * n * kDone, 8 * n * kDone].forEach((v, q) => bar(`s-${q}`, v, 8 * n * N));
+    // global, per tile: 2 + 2 copies per thread here; a 4 × 4 block copies 2 per number of C
+    [4 * n * (tile + 1), 8 * n * (tile + 1)].forEach((v, q) => bar(`g-${q}`, v, 8 * n * TILES));
+    $('#ms-head').textContent = `Numbers read from shared memory · ${groupName()}`;
+    $('#mg-head').textContent = `Numbers read from global memory · ${groupName()}`;
+  }
+
+  // ---------- one step, drawn at rest ----------
+  function paint(pos) {
+    const s = STEPS[pos], { tile, kDone } = progress(pos), r0 = R0(), c0 = C0(), grp = group();
+    const rows = new Set(grp.flatMap(([, ty]) => rowsOf(ty))), cols = new Set(grp.flatMap(([tx]) => colsOf(tx)));
+    const mineA = (i, j) => inGroup(...copierA(i, j)), mineB = (i, j) => inGroup(...copierB(i, j));   // spot copied by the followed group
+
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const a = PA[i][j], b = PB[i][j];
+      const aIn = i >= r0 && i < r0 + BM, bIn = j >= c0 && j < c0 + BN;   // rows of A / columns of B this block needs
+      toggle(a, 'strip', aIn); toggle(b, 'strip', bIn);
+      toggle(a, 'need', s.kind === 'setup' && aIn && rows.has(i - r0));
+      toggle(b, 'need', s.kind === 'setup' && bIn && cols.has(j - c0));
+      toggle(a, 'cur', s.kind === 'load' && aIn && Math.floor(j / BK) === s.t && mineA(i - r0, j % BK));
+      toggle(b, 'cur', s.kind === 'load' && bIn && Math.floor(i / BK) === s.t && mineB(i % BK, j - c0));
+      toggle(PC[i][j], 'stored', s.kind === 'store');
+    }
+    for (let t = 0; t < TILES; t++) {
+      setBox(frA[t], box(GL.A, GL.cell, [[r0, t * BK], [r0 + BM - 1, t * BK + BK - 1]], -1));
+      setBox(frB[t], box(GL.B, GL.cell, [[t * BK, c0], [t * BK + BK - 1, c0 + BN - 1]], -1));
+      const on = t === tile && s.kind !== 'store';
+      [frA[t], frB[t], tagA[t], tagB[t]].forEach((n) => toggle(n, 'on', on));
+    }
+    toggle(vG, 'idle', s.kind === 'fma');
+    setBox(blkFr, box(GL.C, GL.cell, [[r0, c0], [r0 + BM - 1, c0 + BN - 1]], -1.5));
+
+    // load: each spot is written by its copier · fma: thread (tx, ty) reads As[TM·ty + m][k] and Bs[k][TN·tx + n]
+    for (let i = 0; i < BM; i++) for (let j = 0; j < BK; j++) {
+      shared(SA[i][j], tile >= 0);
+      toggle(SA[i][j], 'tgt', s.kind === 'load' && level !== 'block' && mineA(i, j));
+      toggle(SA[i][j], 'cur', s.kind === 'fma' && j === s.k && rows.has(i));
+    }
+    for (let i = 0; i < BK; i++) for (let j = 0; j < BN; j++) {
+      shared(SB[i][j], tile >= 0);
+      toggle(SB[i][j], 'tgt', s.kind === 'load' && level !== 'block' && mineB(i, j));
+      toggle(SB[i][j], 'cur', s.kind === 'fma' && i === s.k && cols.has(j));
+    }
+    allTH().forEach((g) => { thread(g, kDone, '', s.kind === 'fma'); toggle(g, 'wait', false); });
+    kTagA.textContent = kTagB.textContent = s.kind === 'fma' ? `k=${s.k}` : '';
+    kTagA.setAttribute('x', SH.A[0] + ((s.k || 0) + 0.5) * SH.cell);
+    kTagB.setAttribute('y', SH.B[1] + ((s.k || 0) + 0.5) * SH.cell);
+    blkTitle.textContent = cap(blockName());
+    syncTxt.textContent = s.kind === 'load' ? `all ${TX * TY} passed sync()` : '';
+
+    setBox(markS, box(SH.T, SH.cell, thCells(grp), level === 'block' ? -3 : 1));
+    markS.setAttribute('class', `grp-mark ${level}`);
+    setBox(markG, box(GL.C, GL.cell, thCells(grp).map(([i, j]) => [r0 + i, c0 + j]), 0.5));
+    markG.setAttribute('visibility', level === 'block' ? 'hidden' : 'visible');
+    // following one thread through k: dashed rings on the threads that copied the numbers it reads
+    const { tx, ty } = anchor;
+    const srcs = s.kind === 'fma' && level === 'thread'
+      ? [...rowsOf(ty).map((i) => copierA(i, s.k)), ...colsOf(tx).map((j) => copierB(s.k, j))].filter(([x, y]) => x !== tx || y !== ty)
+      : [];
+    srcMarks.forEach((m, n) => {
+      const src = srcs[n];
+      m.setAttribute('visibility', src ? 'visible' : 'hidden');
+      if (src) setBox(m, box(SH.T, SH.cell, thCells([src]), 4));
+    });
+
+    codeOn(...CODE[s.kind]);
+    $('#live-t').textContent = s.kind === 'load' || s.kind === 'fma' ? `t = ${s.t}` : '';
+    $('#live-k').textContent = s.kind === 'fma' ? `k = ${s.k}` : '';
+    $('#live-mn').textContent = '';
+    $('#narr').innerHTML = narrate(s);
+    meter(pos);
+    document.querySelectorAll('#timeline .ts').forEach((b) => {
+      const p = +b.dataset.pos;
+      toggle(b, 'on', p === pos); toggle(b, 'done', p < pos);
+    });
+    const tlBar = $('.tl-bar'), on = tlBar.querySelector('.ts.on');   // on narrow screens, keep the current step in view
+    if (tlBar.scrollWidth > tlBar.clientWidth) {
+      const b = on.getBoundingClientRect(), r = tlBar.getBoundingClientRect();
+      tlBar.scrollLeft += b.left + b.width / 2 - (r.left + r.width / 2);
+    }
+  }
+
+  // ---------- motion ----------
+  let token = 0;
+  const pending = new Set();
+  function later(fn, ms) {
+    const my = token;
+    const id = setTimeout(() => { pending.delete(id); if (my === token) fn(); }, ms);
+    pending.add(id);
+  }
+  function cancel() { token++; pending.forEach(clearTimeout); pending.clear(); dots.replaceChildren(); }
+  function fly(items) {                            // every item starts now; each lands after its own duration
+    const my = token, t0 = performance.now();
+    for (const d of items) d.n = el('circle', { r: 4.5, class: `dot ${d.cls}${d.faint ? ' faint' : ''}`, cx: d.from[0], cy: d.from[1] }, dots);
+    (function frame(now) {
+      if (my !== token) return;
+      let live = false;
+      for (const d of items) {
+        if (d.done) continue;
+        const p = Math.min(1, Math.max(0, (now - t0) / d.dur)), e = 1 - Math.pow(1 - p, 3);
+        d.n.setAttribute('cx', d.from[0] + (d.to[0] - d.from[0]) * e);
+        d.n.setAttribute('cy', d.from[1] + (d.to[1] - d.from[1]) * e);
+        if (p >= 1) { d.done = true; d.n.remove(); if (d.land) d.land(); } else live = true;
+      }
+      if (live) requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  function animateLoad(s) {
+    const r0 = R0(), c0 = C0(), k0 = s.t * BK, n = TX * TY, per = (BM * BK + BK * BN) / n;
+    allShared().forEach((g) => shared(g, s.t > 0, true));   // the old tile fades; nothing yet before tile 0
+    allTH().forEach((g) => thread(g, k0, 'copy'));
+    syncTxt.textContent = '';
+    const copy = () => {
+      codeOn(['hload', 'ij', 'ldA', 'ldB'], ['tile']);
+      const got = TH.map((row) => row.map(() => 0));
+      let here = 0;
+      const landed = (g, tx, ty) => {
+        shared(g, true);
+        pulse([g]);
+        if (++got[ty][tx] < per) return;           // a thread reaches sync() once all its copies have landed
+        thread(TH[ty][tx], k0, 'wait');
+        toggle(TH[ty][tx], 'wait', true);
+        syncTxt.textContent = `at sync(): ${++here} of ${n}`;
+        if (here === n) later(release, 350);
+      };
+      const items = [];
+      for (let i = 0; i < BM; i++) for (let j = 0; j < BK; j++) {
+        const [tx, ty] = copierA(i, j);
+        items.push({ cls: 'a', faint: !inGroup(tx, ty), dur: 650 + 550 * LAG[s.t].a[i][j],
+          from: P.a(r0 + i, k0 + j), to: P.as(i, j), land: () => landed(SA[i][j], tx, ty) });
+      }
+      for (let i = 0; i < BK; i++) for (let j = 0; j < BN; j++) {
+        const [tx, ty] = copierB(i, j);
+        items.push({ cls: 'b', faint: !inGroup(tx, ty), dur: 650 + 550 * LAG[s.t].b[i][j],
+          from: P.b(k0 + i, c0 + j), to: P.bs(i, j), land: () => landed(SB[i][j], tx, ty) });
+      }
+      fly(items);
+    };
+    const release = () => {
+      codeOn(['sync1'], ['hload', 'ij', 'ldA', 'ldB', 'tile']);
+      allTH().forEach((g) => { thread(g, k0); toggle(g, 'wait', false); });
+      pulse(allTH());
+      syncTxt.textContent = `all ${n} passed sync()`;
+    };
+    if (s.t > 0) { codeOn(['sync2'], ['tile']); later(copy, 450); } else copy();
+  }
+
+  // first every thread reads its a's and b's into registers, then each sum takes its own a and b
+  function animateFma(s) {
+    const done = Array(TM * TN).fill(s.kg);
+    allTH().forEach((g) => thread(g, s.kg));
+    codeOn(['a', 'b'], ['tile', 'kloop']);
+    const use = () => {
+      for (let m = 0; m < TM; m++) for (let n = 0; n < TN; n++) {
+        const q = TN * m + n;
+        later(() => {
+          codeOn(['mn', 'fma'], ['tile', 'kloop', 'a', 'b']);
+          $('#live-mn').textContent = `m, n = ${m}, ${n}`;
+          const items = [];
+          for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) {
+            const faint = !inGroup(tx, ty), to = P.acc(TM * ty + m, TN * tx + n);
+            items.push({ cls: 'a', faint, dur: 380, from: P.ra(ty, tx, m), to });
+            items.push({ cls: 'b', faint, dur: 380, from: P.rb(ty, tx, n), to });
+          }
+          items[items.length - 1].land = () => {
+            done[q] = s.kg + 1;
+            allTH().forEach((g) => thread(g, done, '', true));
+            if (q === TM * TN - 1) { pulse(allTH()); codeOn(...CODE.fma); $('#live-mn').textContent = ''; }
+          };
+          fly(items);
+        }, q * 200);
+      }
+    };
+    const items = [];
+    for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) {
+      const faint = !inGroup(tx, ty);
+      for (let m = 0; m < TM; m++) items.push({ cls: 'a', faint, dur: 400, from: P.as(TM * ty + m, s.k), to: P.ra(ty, tx, m) });
+      for (let n = 0; n < TN; n++) items.push({ cls: 'b', faint, dur: 400, from: P.bs(s.k, TN * tx + n), to: P.rb(ty, tx, n) });
+    }
+    items[items.length - 1].land = () => { allTH().forEach((g) => thread(g, s.kg, '', true)); later(use, 120); };
+    fly(items);
+  }
+
+  function animateStore() {
+    const r0 = R0(), c0 = C0();
+    PC.flat().forEach((g) => toggle(g, 'stored', false));
+    codeOn(['sync2']);
+    later(() => {
+      codeOn(['st', 'st1']);
+      const items = [];
+      for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) for (const i of rowsOf(ty)) for (const j of colsOf(tx))
+        items.push({ cls: 'c', faint: !inGroup(tx, ty), dur: 800, from: P.acc(i, j), to: P.c(r0 + i, c0 + j) });
+      items[items.length - 1].land = () => { PC.flat().forEach((g) => toggle(g, 'stored', true)); pulse(PC.flat()); };
+      fly(items);
+    }, 450);
+  }
+
+  function render(pos, animate) {
+    cancel();
+    paint(pos);
+    if (!animate || reduceMotion) return;
+    const s = STEPS[pos];
+    if (s.kind === 'load') animateLoad(s);
+    else if (s.kind === 'fma') animateFma(s);
+    else if (s.kind === 'store') animateStore();
+  }
+
+  // ---------- hover tips ----------
+  const TIPS = {
+    tiling: 'Each thread computes a small block of C: here 2 × 2, often 8 × 8 in real kernels. 2D because the block spans rows and columns, where Part 3\'s was a line.',
+    reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
+    global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
+    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads, each with registers for its 4 sums, a and b. The other 3 blocks do the same at the same time.',
+    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 4 threads.',
+    shared: 'Tiles twice Part 2\'s size: 8 rows of A by 4 columns, and 4 rows of B by 8 columns, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[8][4], Bs[4][8];</code>',
+    tid: 'This thread\'s place in its block: tx and ty each from 0 to 3. The block is 4 × 4 threads, as in Part 2.',
+    r: 'The first row of C this block covers. A block now covers 8 rows and 8 columns.',
+    c: 'The first column of C this block covers.',
+    rowcol: 'The top-left corner of this thread\'s 2 × 2 square of C. <code>threadIdx.x</code> still runs along a row of C.',
+    acc: 'Four running sums, one for each number of this thread\'s square of C. All four live in registers.<br>CUDA: <code>float acc[2][2] = {};</code>',
+    tile: 'Walk along k one tile at a time: 4 columns of A and 4 rows of B per tile. N = 16 makes 4 tiles.',
+    hload: 'Each tile has 32 numbers for 16 threads, so each thread copies 2 of A and 2 of B, one in each half h.',
+    ij: 'Half h of As is rows 4h to 4h + 3; half h of Bs is columns 4h to 4h + 3. Each half is a 4 × 4 square, copied like Part 2\'s whole tile: one row per warp.',
+    ldA: 'Warp ty copies rows ty and ty + 4 of the A tile: 4 neighbors each, one coalesced load per row.',
+    ldB: 'Warp ty copies row ty of the B tile: 8 neighbors, in two coalesced loads of 4.',
+    sync1: 'A barrier: no thread goes on until all 16 have reached it. Here it makes sure the tiles are complete, because each thread reads numbers its neighbors copied.<br>CUDA: <code>__syncthreads()</code>',
+    kloop: '4 steps per tile. Each one: 2 reads of As and 2 of Bs, for 4 multiply-adds.',
+    a: 'One number of As for each row of this thread\'s square. All 4 threads of a warp read the same two, and shared memory serves each to all of them at once.<br>CUDA: <code>for (int m = 0; m &lt; 2; m++) a[m] = As[2 * ty + m][k];</code>',
+    b: 'One number of Bs for each column of this thread\'s square.<br>CUDA: <code>for (int n = 0; n &lt; 2; n++) b[n] = Bs[k][2 * tx + n];</code>',
+    mn: 'Every a with every b: 4 multiply-adds from the 4 numbers just read, each used twice. The 4 don\'t depend on each other, so none waits for another to finish.',
+    fma: 'acc[m][n] sits at row m, column n of this thread\'s square, so it takes a[m], from its row of A, and b[n], from its column of B.',
+    sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
+    st: 'Each thread writes its 4 finished sums to C, once.',
+    st1: 'Each thread writes its 4 finished sums to C, once. A warp writes 2 rows of 8 neighbors.',
+    'meter-s': 'Every number the followed threads load from shared memory, against Parts 2 and 3 computing the same numbers of C. Per multiply-add, Part 2 loads 2, Part 3 1.5, this kernel 1. Whole kernel at N = 16: 4,096 against 6,144 and 8,192.',
+    'meter-g': 'Every number the followed threads copy from global memory. A 4 × 4 block copies 32 per tile for 16 numbers of C; an 8 × 8 block copies 64 for 64, half as many per number. Whole kernel at N = 16: 1,024 against 2,048.',
+    'sync-1': '<b>sync()</b><br>Wait until all 16 threads have copied their numbers.',
+    'sync-2': '<b>sync()</b><br>Wait until all 16 threads are done with this tile before the next one overwrites it.',
+  };
+  function stepTip(p) {
+    const s = STEPS[p];
+    if (s.kind === 'setup') return '<b>Setup</b><br>The block sets aside shared memory for As and Bs, and each thread works out its square of C and zeroes its 4 sums.';
+    if (s.kind === 'load') return `<b>Load tile ${s.t}</b><br>Copy an 8 × 4 tile of A and a 4 × 8 tile of B from global memory into shared memory, 2 numbers of each per thread.`;
+    if (s.kind === 'fma') return `<b>Tile ${s.t}, k = ${s.k}</b><br>Each thread reads 2 numbers of As into a and 2 of Bs into b, then does 4 multiply-adds (overall k = ${s.kg}).`;
+    return '<b>Store</b><br>Each thread writes its 4 sums to C.';
+  }
+  // hovering a number rings the threads that read it, and the thread that copies it with a dashed ring
+  function cellTip(g) {
+    const kind = g.dataset.kind, i = +g.dataset.i, j = +g.dataset.j, r0 = R0(), c0 = C0();
+    const { tile, kDone } = progress(pos);
+    const marks = [], srcs = [];
+    let outline = null;
+    // row i of As is a[i mod TM] for the threads in thread row i ÷ TM; column j of Bs is b[j mod TN] for the threads in thread column j ÷ TN
+    const readers = (isA, n) => {
+      if (isA) marks.push(...TH[Math.floor(n / TM)]);
+      else for (let y = 0; y < TY; y++) marks.push(TH[y][Math.floor(n / TN)]);
+    };
+    const readersOf = (isA, n) => (isA
+      ? `the ${TX} threads of warp ${warpNo(anchor.bx, anchor.by, Math.floor(n / TM))}, as a[${n % TM}]`
+      : `the ${TY} threads in column ${Math.floor(n / TN)} of the block, as b[${n % TN}]`);
+    let html;
+    if (kind === 'a' || kind === 'b') {
+      const isA = kind === 'a', name = `${isA ? 'A' : 'B'}[${i}][${j}]`, wrap = isA ? vA : vB;
+      const si = isA ? i - r0 : i % BK, sj = isA ? j % BK : j - c0, t = Math.floor((isA ? j : i) / BK);
+      if (isA ? si < 0 || si >= BM : sj < 0 || sj >= BN) {
+        html = `<b>${wrap(name)}</b><br>${cap(blockName())} never needs this ${isA ? 'row' : 'column'}. Other blocks do.`;
+      } else {
+        const [cx, cy] = (isA ? copierA : copierB)(si, sj), sh = `${isA ? 'As' : 'Bs'}[${si}][${sj}]`;
+        html = `<b>${wrap(name)}</b> · tile ${t}<br>Needed by ${readersOf(isA, isA ? si : sj)}. Thread (${cx}, ${cy}) copies it into ${wrap(sh)}, once.`;
+        readers(isA, isA ? si : sj);
+        srcs.push(TH[cy][cx]);
+        if (tile === t) marks.push((isA ? SA : SB)[si][sj]);
+      }
+    } else if (kind === 'as' || kind === 'bs') {
+      const isA = kind === 'as', name = `${isA ? 'As' : 'Bs'}[${i}][${j}]`, wrap = isA ? vA : vB, [cx, cy] = (isA ? copierA : copierB)(i, j);
+      srcs.push(TH[cy][cx]);
+      if (tile < 0) {
+        html = `<b>${wrap(name)}</b><br>Empty until the first tile arrives. Thread (${cx}, ${cy}) will fill it.`;
+      } else {
+        const src = isA ? [r0 + i, tile * BK + j] : [tile * BK + i, c0 + j];
+        html = `<b>${wrap(name)}</b> holds ${wrap(`${isA ? 'A' : 'B'}[${src[0]}][${src[1]}]`)}<br>Copied by thread (${cx}, ${cy}). ` +
+          `Read at k = ${isA ? j : i} by ${readersOf(isA, isA ? i : j)}.`;
+        marks.push((isA ? PA : PB)[src[0]][src[1]]);
+        readers(isA, isA ? i : j);
+      }
+    } else if (kind === 'th') {
+      const tx = j, ty = i, [i0, i1] = rowsOf(ty), [j0, j1] = colsOf(tx), r = r0 + i0, c = c0 + j0;
+      html = `<b>Thread (${tx}, ${ty})</b> · warp ${warpNo(anchor.bx, anchor.by, ty)}<br>Computes ${vC(`C[${r}..${r + 1}][${c}..${c + 1}]`)} from rows ${i0} and ${i1} of ${vA('As')} and columns ${j0} and ${j1} of ${vB('Bs')}. ` +
+        `Each sum has ${kDone} of ${N} products so far.<br>Click to follow it.`;
+      for (let k = 0; k < BK; k++) marks.push(SA[i0][k], SA[i1][k], SB[k][j0], SB[k][j1]);
+    } else {
+      const bx = Math.floor(j / BN), by = Math.floor(i / BM), tx = Math.floor((j % BN) / TN), ty = Math.floor((i % BM) / TM);
+      html = `<b>${vC(`C[${i}][${j}]`)}</b><br>acc[${i % TM}][${j % TN}] of thread (${tx}, ${ty}) of block (${bx}, ${by}), warp ${warpNo(bx, by, ty)}.<br>Click to follow it.`;
+      const bi = by * BM, bj = bx * BN, ri = bi + TM * ty, cj = bj + TN * tx;
+      outline = level === 'thread' ? [[ri, cj], [ri + TM - 1, cj + TN - 1]]
+        : level === 'warp' ? [[ri, bj], [ri + TM - 1, bj + BN - 1]]
+        : [[bi, bj], [bi + BM - 1, bj + BN - 1]];
+    }
+    return { html, marks, srcs, outline };
+  }
+
+  const tip = $('#tip');
+  let tipNode = null, tipMarks = [], tipSrcs = [];
+  function showTip(node) {
+    tipMarks.forEach((m) => m.classList.remove('hl'));
+    tipSrcs.forEach((m) => m.classList.remove('hl-src'));
+    tipMarks = []; tipSrcs = [];
+    hoverG.setAttribute('visibility', 'hidden');
+    tipNode = node;
+    if (!node) { tip.hidden = true; return; }
+    let html, outline;
+    if (node.dataset.kind) ({ html, marks: tipMarks, srcs: tipSrcs, outline } = cellTip(node));
+    else if (node.dataset.pos != null) html = stepTip(+node.dataset.pos);
+    else html = TIPS[node.dataset.tip || node.dataset.id];
+    if (!html) { tip.hidden = true; return; }
+    tipMarks.forEach((m) => m.classList.add('hl'));
+    tipSrcs.forEach((m) => m.classList.add('hl-src'));
+    if (outline) {
+      setBox(hoverG, box(GL.C, GL.cell, outline, 0.5));
+      hoverG.setAttribute('class', `grp-mark ${level}`);
+      hoverG.setAttribute('visibility', 'visible');
+    }
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const rc = node.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    const x = Math.max(8, Math.min(innerWidth - w - 8, rc.left + rc.width / 2 - w / 2));
+    const y = rc.top - h - 8 >= 8 ? rc.top - h - 8 : rc.bottom + 8;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  }
+  const HOVER = '.cell, [data-tip], #code .ln, #timeline [data-pos]';
+  document.addEventListener('pointerover', (e) => {
+    const node = e.target.closest(HOVER);
+    if (node !== tipNode) showTip(node);
+  });
+  document.addEventListener('scroll', () => showTip(null), { passive: true });
+
+  // ---------- controls ----------
+  const fig = $('#fig');
+  const playBtn = fig.querySelector('[data-act=play]');
+  const backBtn = fig.querySelector('[data-act=back]');
+  const nextBtn = fig.querySelector('[data-act=next]');
+  const ICON_PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
+  const DWELL = { setup: 1600, load: 2900, fma: 1800, store: 2200 };
+  let pos = 0, timer = null;
+
+  function sync() {
+    playBtn.innerHTML = timer ? `${ICON_PAUSE}Pause` : `${ICON_PLAY}${pos === LAST ? 'Replay' : 'Play'}`;
+    backBtn.disabled = pos === 0;
+    nextBtn.disabled = pos === LAST;
+  }
+  function go(i, animate) {
+    pos = Math.max(0, Math.min(LAST, i));
+    render(pos, animate);
+    sync();
+    if (tipNode) showTip(tipNode);
+  }
+  function stop() { clearTimeout(timer); timer = null; sync(); }
+  function tick() { timer = setTimeout(() => { if (pos === LAST) stop(); else { go(pos + 1, true); tick(); } }, DWELL[STEPS[pos].kind]); }
+  function play() { if (pos === LAST) go(0, false); else go(pos + 1, true); tick(); sync(); }
+  function follow(next) { Object.assign(anchor, next); go(pos, false); }
+
+  fig.querySelector('[data-act=restart]').addEventListener('click', () => { stop(); go(0, false); });
+  backBtn.addEventListener('click', () => { stop(); go(pos - 1, false); });
+  nextBtn.addEventListener('click', () => { stop(); go(pos + 1, true); });
+  playBtn.addEventListener('click', () => (timer ? stop() : play()));
+  function setLevel(lv) {
+    level = lv;
+    document.querySelectorAll('#seg-level button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.level === lv)));
+  }
+  document.querySelectorAll('#seg-level button').forEach((b) => b.addEventListener('click', () => { setLevel(b.dataset.level); go(pos, false); }));
+  svg.addEventListener('click', (e) => {
+    const g = e.target.closest('.cell.c, .cell.th');
+    if (!g) return;
+    const i = +g.dataset.i, j = +g.dataset.j;
+    if (g.dataset.kind === 'th') follow({ tx: j, ty: i });
+    else follow({ bx: Math.floor(j / BN), by: Math.floor(i / BM), tx: Math.floor((j % BN) / TN), ty: Math.floor((i % BM) / TM) });
+  });
+  // arrows step from anywhere on the page, except while typing or with modifiers held
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'ArrowRight') { stop(); if (pos < LAST) go(pos + 1, true); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { stop(); go(pos - 1, false); e.preventDefault(); }
+  });
+
+  // timeline: setup | per tile: load ‖ k=0..3 ‖ | store
+  (function buildTimeline() {
+    const btn = (p, label) => `<button class="ts" data-pos="${p}">${label}</button>`;
+    let html = btn(0, 'setup'), p = 1;
+    for (let t = 0; t < TILES; t++) {
+      html += `<div class="tl-tile"><div class="tl-row">${btn(p++, 'load')}<span class="tl-sync" data-tip="sync-1"></span>`;
+      for (let k = 0; k < BK; k++) html += btn(p++, `k=${k}`);
+      html += `<span class="tl-sync" data-tip="sync-2"></span></div><div class="tl-cap">tile ${t}</div></div>`;
+    }
+    html += btn(p, 'store');
+    const tl = $('#timeline');
+    tl.innerHTML = html;
+    tl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pos]');
+      if (b) { stop(); const to = +b.dataset.pos; go(to, to === pos + 1); }
+    });
+  })();
+
+  const stage = $('.stage');
+  new ResizeObserver(() => {
+    const wide = stage.clientWidth >= 560;
+    if (!L || L.wide !== wide) { layout(wide); go(pos, false); }
+  }).observe(stage);
+  layout(stage.clientWidth >= 560);
+  setLevel('block');
+  go(0, false);
+})();
+</script>
+</body>
+</html>

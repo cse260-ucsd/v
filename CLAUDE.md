@@ -12,6 +12,7 @@ Self-contained interactive HTML pages (no build step) teaching matrix multiply f
 - `cutlass-visualization-v2-naive.html` (Part 1)
 - `cutlass-visualization-v2-shared-memory-tiling.html` (Part 2)
 - `cutlass-visualization-v2-1d-block-tiling.html` (Part 3)
+- `cutlass-visualization-v2-2d-block-tiling.html` (Part 4)
 
 ## Decisions
 
@@ -19,6 +20,6 @@ Self-contained interactive HTML pages (no build step) teaching matrix multiply f
 - **Text mirrors the picture.** When a caption names something the picture marks, mark it the same way in the text.
 - **Interactions match the Follow level** (thread / warp / block): hover outlines and highlights cover the followed group's size, and hover must not flicker across gaps between cells.
 - **Controls never replay by accident**: stepping past the first or last step does nothing.
-- **Small model, real reference.** Pictures use a shrunk GPU (8 × 8 matrices, 4-thread warps); the intro lists the differences from a Tesla T4. Cite and link NVIDIA's official docs (the current CUDA Programming Guide) for facts.
+- **Small model, real reference.** Pictures use a shrunk GPU (8 × 8 matrices, 16 × 16 from Part 4; 4-thread warps); the intro lists the differences from a Tesla T4. Cite and link NVIDIA's official docs (the current CUDA Programming Guide) for facts.
 - **One look across pages**: shared CSS tokens, fonts and light/dark themes; C is blue, A orange, B green everywhere (matching `gotoblas.html`).
 - **Commit after every change.** Finish each change with a git commit; don't leave edits uncommitted.
