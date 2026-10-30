@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
 <style>
 /* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
-   toolbar + follow switch → step timeline → one-line caption → picture and read counts | pseudo-code.
+   toolbar + follow switch → step timeline → one-line caption → picture | pseudo-code and read counts.
    The picture pairs global memory (A, B, C) with one block on the chip (its shared tiles As, Bs around its threads).
    Cells carry no numbers: the lesson is where data moves, and details live in hover tips.
    A, B and C keep the same colors as Part 1. */
@@ -249,10 +249,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
 .code .live:empty { display: none; }
 
-/* global reads: two bars under the picture */
-.meter { cursor: help; width: min(100%, 560px); margin: 0 auto; }
-.m-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) 3em; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--muted); }
-.m-row + .m-row { margin-top: 6px; }
+/* global reads: two bars under the pseudo-code, each label above its bar */
+.meter { cursor: help; margin-top: 18px; }
+.m-row { display: grid; grid-template-columns: minmax(0, 1fr) 3em; align-items: center; gap: 2px 10px; font-size: 0.9rem; color: var(--muted); }
+.m-row > span:first-child { grid-column: 1 / -1; }
+.m-row + .m-row { margin-top: 8px; }
 .m-row .num { font: 700 0.9rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .m-row.now { color: var(--ink); font-weight: 600; }
 .track { height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
@@ -305,11 +306,6 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <div class="fig-body">
       <div class="stage">
         <svg class="pic" id="pic" role="img" aria-label="Left: matrices A, B and C in global memory. Right: one block's shared tiles As and Bs around its 16 threads."></svg>
-        <div class="meter" data-tip="meter">
-          <div class="panel-h" id="m-head"></div>
-          <div class="m-row now"><span>with tiles</span><div class="track"><i id="b-tiled"></i></div><span class="num" id="m-tiled"></span></div>
-          <div class="m-row"><span>without (Part 1)</span><div class="track"><i id="b-naive"></i></div><span class="num" id="m-naive"></span></div>
-        </div>
       </div>
       <div class="side">
         <div class="code" id="code" aria-label="Kernel pseudo-code">
@@ -327,6 +323,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
           <span class="ln" data-id="fma">      acc += <span class="vA">As</span>[ty][k] · <span class="vB">Bs</span>[k][tx]</span>
           <span class="ln" data-id="sync2">    sync()</span>
           <span class="ln" data-id="store">  <span class="vC">C</span>[row][col] = acc</span>
+        </div>
+        <div class="meter" data-tip="meter">
+          <div class="panel-h" id="m-head"></div>
+          <div class="m-row now"><span>with tiles</span><div class="track"><i id="b-tiled"></i></div><span class="num" id="m-tiled"></span></div>
+          <div class="m-row"><span>without (Part 1)</span><div class="track"><i id="b-naive"></i></div><span class="num" id="m-naive"></span></div>
         </div>
       </div>
     </div>
