@@ -539,7 +539,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     const { tx, ty } = anchor, r = R0() + ty, c = C0() + tx, w = warpNo(anchor.bx, anchor.by, ty);
     const who = (x, y) => (x === tx && y === ty ? 'itself' : `<span class="src-ref">thread (${x}, ${y})</span>`);   // ringed like its src-mark
     if (s.kind === 'setup') {
-      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined 16 numbers of ${vC('C')}. Every number it needs from ${vA('A')} and ${vB('B')} is needed by ${T} of its threads. Hover one to see which.`;
+      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined 16 numbers of ${vC('C')}. Every number it needs from ${vA('A')} and ${vB('B')} is needed by ${T} of its threads.`;
       if (level === 'warp') return `<b>Warp ${w}</b> computes one row of ${blockName()}. All ${T} of its threads need the same row of ${vA('A')}.`;
       return `<b>Thread (${tx}, ${ty})</b> of ${blockName()} computes ${vC(`C[${r}][${c}]`)} from row ${r} of ${vA('A')} and column ${c} of ${vB('B')}.`;
     }
