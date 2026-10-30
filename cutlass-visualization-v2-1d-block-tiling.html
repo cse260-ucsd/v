@@ -347,7 +347,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Longer strips.</b> Real kernels often give each thread 8 numbers of a column of <span class="vC">C</span> instead of 2. Each number read from <span class="vB">Bs</span> then feeds 8 multiply-adds: 9 reads of shared memory for 8 multiply-adds, against 16 in Part 2.</li>
+      <li><b>Strip length.</b> The number of sums per thread is a parameter to tune. With TM numbers of a column of <span class="vC">C</span> per thread, each number read from <span class="vB">Bs</span> feeds TM multiply-adds: TM + 1 reads of shared memory for TM multiply-adds, against 2 · TM in Part 2. Longer strips need more registers (below), so time a few lengths on the target GPU to find the fastest.</li>
       <li><b>Registers.</b> Every sum takes a register, and the threads on an SM (streaming multiprocessor) share its registers. A Tesla T4 SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#occupancy">65,536</a>: 64 per thread when all 1,024 threads it can hold are there. Threads that need more fit fewer per SM, which leaves <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps</a> to switch to while one waits for memory. Independent multiply-adds within each thread make up for some of that: the two here don't wait for each other.</li>
       <li><b>Arrays in registers.</b> <code>acc[0..1]</code> stays in registers only because every index into it is a constant. When the compiler can't tell that, the array goes to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#local-memory">local memory</a>, which sits in global memory and is just as slow. Real kernels loop over the strip with <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#pragma-unroll"><code>#pragma unroll</code></a>, which turns every index into a constant.</li>
     </ol>
@@ -807,7 +807,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    tiling: 'Each thread computes a strip of C: here 2 numbers in one column, often 8 in real kernels. 1D because the strip is a line. 2D block tiling gives each thread a small square instead.',
+    tiling: 'Each thread computes a strip of C: here 2 numbers in one column. Real kernels tune the length for their GPU. 1D because the strip is a line. 2D block tiling gives each thread a small square instead.',
     reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 8 threads, each with registers for acc[0], acc[1] and b. The other 15 blocks do the same at the same time.',
