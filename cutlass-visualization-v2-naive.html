@@ -234,6 +234,22 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 .pager a { text-decoration: none; }
 .pager a:hover { text-decoration: underline; }
 
+/* notes under the figure: how a real implementation differs from the picture */
+.notes { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 0.95rem; }
+.notes h2 { font: 700 1.4rem/1.2 var(--font-display); letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6em; }
+.notes > p { max-width: 68ch; margin: 0 0 1em; }
+.notes ol { margin: 0; padding-left: 1.6em; }
+.notes li { max-width: 68ch; margin-bottom: 0.8em; padding-left: 0.2em; }
+.notes li.wide { max-width: 84ch; }
+.notes li p { max-width: 68ch; margin: 0; }
+.notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
+pre.cuda {
+  font: 12.5px/1.7 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; margin: 10px 0 0; overflow-x: auto;
+}
+pre.cuda .kw { font-weight: 700; }
+pre.cuda .cm { color: var(--muted); font-style: italic; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
@@ -243,7 +259,7 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 <main class="page">
 
   <nav class="pager">
-    <a href="cutlass-visualization-v2-intro.html">← Introduction</a>
+    <span></span>
     <a href="cutlass-visualization-v2-shared-memory-tiling.html">Part 2: Shared memory tiling →</a>
   </nav>
 
@@ -303,6 +319,36 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
       </div>
     </div>
   </div>
+
+  <section class="notes">
+    <h2>In a real implementation</h2>
+    <p>The picture shrinks an NVIDIA Tesla T4 to fit on screen. The kernel runs on it as written; what changes is scale, and how the hardware schedules the work.</p>
+    <ol>
+      <li><b>Warps.</b> A warp has <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html#warps-and-simt">32 threads</a>, not 4. It takes 32 consecutive thread IDs, counted along <code>threadIdx.x</code> first, so in a 16 × 16 block each warp covers two rows of threads.</li>
+      <li><b>Sizes.</b> A block can have up to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">1,024 threads</a>; 16 × 16 = 256 is a common choice. Matrices worth a GPU are hundreds to thousands of numbers per side, so the grid has hundreds to thousands of blocks, not 4.</li>
+      <li><b>Running at once.</b> In the picture, every thread takes each step together. A T4 has 40 streaming multiprocessors (SMs), each holding at most 16 blocks and 1,024 threads at a time; further blocks wait for a free SM. Each SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#instruction-scheduling">4 warp schedulers</a>. Each one issues an instruction for one warp at a time, and switches to another warp while one waits for memory.</li>
+      <li><b>Memory chunks.</b> A chunk is <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#coalesced-access-to-global-memory">32 bytes</a>: 8 floats, not 4. A warp reading 32 neighbors along a row needs 4 chunks, 128 bytes. Reading down a column, it needs 32 chunks and uses 4 bytes of each.</li>
+      <li><b>Caches.</b> The picture fetches every chunk from memory. A T4 keeps recent chunks in its L1 and L2 caches, so with <code>threadIdx.x</code> → row, the chunk fetched for <span class="vA">A[r][0]</span> may still hold <span class="vA">A[r][1]</span> to <span class="vA">A[r][7]</span> at the next steps. Each chunk is still a separate 32-byte access, cached or not, so reading down a column still takes 32 accesses where reading along a row takes 4.</li>
+      <li><b>Sizes that don't divide.</b> This launch makes N / 4 blocks per side, which covers <span class="vC">C</span> only when N is a multiple of 4. Real code rounds the grid up and has threads outside the matrix skip the work: <code>if (row &lt; N &amp;&amp; col &lt; N)</code>.</li>
+      <li class="wide">
+        <p><b>CUDA C++.</b> <code>kernel</code> is <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#execution-space-specifiers"><code>__global__ void</code></a>, and the launch passes the grid and block sizes in <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#kernel-configuration"><code>&lt;&lt;&lt;grid, block&gt;&gt;&gt;</code></a>. Matrices are flat row-major arrays, so <code><span class="vA">A</span>[row][k]</code> is <code><span class="vA">A</span>[row * N + k]</code>. <code>for k in 0 .. N − 1</code> includes both ends. At the picture's sizes:</p>
+<pre class="cuda"><span class="kw">__global__ void</span> matmul(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
+{
+    <span class="kw">int</span> row = blockIdx.y * blockDim.y + threadIdx.y;
+    <span class="kw">int</span> col = blockIdx.x * blockDim.x + threadIdx.x;   <span class="cm">// threadIdx.x along a row: coalesced</span>
+
+    <span class="kw">float</span> acc = 0.0f;
+    <span class="kw">for</span> (<span class="kw">int</span> k = 0; k &lt; N; k++)
+        acc += <span class="vA">A</span>[row * N + k] * <span class="vB">B</span>[k * N + col];
+    <span class="vC">C</span>[row * N + col] = acc;
+}
+
+dim3 block(4, 4);
+dim3 grid(N / 4, N / 4);
+matmul&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</pre>
+      </li>
+    </ol>
+  </section>
 
 </main>
 <div class="tip" id="tip" hidden></div>

@@ -263,6 +263,22 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .pager a { text-decoration: none; }
 .pager a:hover { text-decoration: underline; }
 
+/* notes under the figure: how a real implementation differs from the picture */
+.notes { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 0.95rem; }
+.notes h2 { font: 700 1.4rem/1.2 var(--font-display); letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 0.6em; }
+.notes > p { max-width: 68ch; margin: 0 0 1em; }
+.notes ol { margin: 0; padding-left: 1.6em; }
+.notes li { max-width: 68ch; margin-bottom: 0.8em; padding-left: 0.2em; }
+.notes li.wide { max-width: 84ch; }
+.notes li p { max-width: 68ch; margin: 0; }
+.notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
+pre.cuda {
+  font: 12.5px/1.7 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; margin: 10px 0 0; overflow-x: auto;
+}
+pre.cuda .kw { font-weight: 700; }
+pre.cuda .cm { color: var(--muted); font-style: italic; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
@@ -345,6 +361,58 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
       </div>
     </div>
   </div>
+
+  <section class="notes">
+    <h2>In a real implementation</h2>
+    <ol>
+      <li><b>Bigger squares.</b> Real kernels often give each thread 8 × 8 numbers of <span class="vC">C</span>, so a block of 256 threads covers 128 × 128. At each step a thread reads 8 numbers of <span class="vA">As</span> and 8 of <span class="vB">Bs</span> for 64 multiply-adds, 4 per read, and the block copies 16 times fewer numbers from global memory per number of <span class="vC">C</span> than the 8 × 8 blocks here.</li>
+      <li><b>Registers.</b> 64 sums, 8 numbers of <span class="vA">a</span> and 8 of <span class="vB">b</span> take 80 registers, more than the 64 per thread that would let 1,024 threads fit on a Tesla T4 SM (streaming multiprocessor). Such kernels run <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps per SM</a> and rely on each thread's 64 independent multiply-adds to keep it busy.</li>
+      <li><b>Banks.</b> The threads of a warp read <span class="vB">Bs</span> two numbers apart. Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, with successive 4-byte words in successive banks, so the 4 threads here hit 4 different banks. A real warp of 32 threads along a row of the block would put two threads in each bank, and the two reads would take turns. CUTLASS lays out its reads of shared memory to be <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">conflict-free</a>.</li>
+      <li><b>Warp tiles.</b> CUTLASS adds a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#hierarchical-structure">level between block and thread</a>: each warp computes its own tile of the block's part of <span class="vC">C</span>, and each thread a piece of the warp's tile. Parts 2 to 4 have only blocks and threads.</li>
+      <li><b>Tensor Cores.</b> Every multiply-add here runs on the T4's 2,560 FP32 cores, <a href="https://www.nvidia.com/en-us/data-center/tesla-t4/">8.1 TFLOPS</a> at most. CUTLASS on a T4 mostly uses its 320 Tensor Cores instead: a whole warp issues one instruction that multiplies small tiles of half-precision numbers, for up to 65 TFLOPS.</li>
+      <li><b>Libraries.</b> Programs rarely write this kernel themselves. They call <a href="https://docs.nvidia.com/cuda/cublas/index.html#cublas-t-gemm">cuBLAS</a> (<code>cublasSgemm</code>) or build a kernel from CUTLASS's templates.</li>
+      <li class="wide">
+        <p><b>CUDA C++.</b> The loops over <code>m</code> and <code>n</code> have a known length, so the compiler <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#pragma-unroll">unrolls</a> them, and every index into <code>acc</code>, <span class="vA">a</span> and <span class="vB">b</span> becomes a constant. At the picture's sizes:</p>
+<pre class="cuda"><span class="kw">constexpr int</span> BM = 8, BN = 8, BK = 4;   <span class="cm">// a block computes BM × BN of C, BK along k per tile</span>
+<span class="kw">constexpr int</span> TM = 2, TN = 2;           <span class="cm">// a thread computes TM × TN of C</span>
+
+<span class="kw">__global__ void</span> matmul_2d(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
+{
+    <span class="kw">__shared__ float</span> <span class="vA">As</span>[BM][BK], <span class="vB">Bs</span>[BK][BN];
+    <span class="kw">int</span> tx = threadIdx.x, ty = threadIdx.y;
+    <span class="kw">int</span> r = blockIdx.y * BM, c = blockIdx.x * BN;
+    <span class="kw">int</span> row = r + TM * ty, col = c + TN * tx;
+
+    <span class="kw">float</span> acc[TM][TN] = {};   <span class="cm">// the loops over m and n unroll, so acc, a and b stay in registers</span>
+    <span class="kw">float</span> <span class="vA">a</span>[TM], <span class="vB">b</span>[TN];
+    <span class="kw">for</span> (<span class="kw">int</span> t = 0; t &lt; N / BK; t++) {
+        <span class="kw">for</span> (<span class="kw">int</span> h = 0; h &lt; 2; h++) {   <span class="cm">// two 4 × 4 halves of each tile, one row per warp</span>
+            <span class="kw">int</span> i = 4 * h + ty, j = 4 * h + tx;
+            <span class="vA">As</span>[i][tx] = <span class="vA">A</span>[(r + i) * N + t * BK + tx];
+            <span class="vB">Bs</span>[ty][j] = <span class="vB">B</span>[(t * BK + ty) * N + c + j];
+        }
+        __syncthreads();
+        <span class="kw">for</span> (<span class="kw">int</span> k = 0; k &lt; BK; k++) {
+            <span class="kw">for</span> (<span class="kw">int</span> m = 0; m &lt; TM; m++) <span class="vA">a</span>[m] = <span class="vA">As</span>[TM * ty + m][k];
+            <span class="kw">for</span> (<span class="kw">int</span> n = 0; n &lt; TN; n++) <span class="vB">b</span>[n] = <span class="vB">Bs</span>[k][TN * tx + n];
+            <span class="kw">for</span> (<span class="kw">int</span> m = 0; m &lt; TM; m++)
+                <span class="kw">for</span> (<span class="kw">int</span> n = 0; n &lt; TN; n++)
+                    acc[m][n] += <span class="vA">a</span>[m] * <span class="vB">b</span>[n];
+        }
+        __syncthreads();
+    }
+    <span class="kw">for</span> (<span class="kw">int</span> m = 0; m &lt; TM; m++)
+        <span class="kw">for</span> (<span class="kw">int</span> n = 0; n &lt; TN; n++)
+            <span class="vC">C</span>[(row + m) * N + col + n] = acc[m][n];
+}
+
+<span class="cm">// N must be a multiple of BM, BN and BK</span>
+dim3 block(BN / TN, BM / TM);   <span class="cm">// 4 × 4 threads</span>
+dim3 grid(N / BN, N / BM);
+matmul_2d&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</pre>
+      </li>
+    </ol>
+  </section>
 
 </main>
 <div class="tip" id="tip" hidden></div>
