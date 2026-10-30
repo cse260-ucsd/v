@@ -10,7 +10,7 @@
 <style>
 /* Layout: one left-aligned reading column (~68ch); tables and the hierarchy figure widen to 1120px.
    Three sections: terms, this series against a Tesla T4, pseudo-code against CUDA C++.
-   A, B and C keep the same colors as Parts 1 to 3. */
+   A, B and C keep the same colors as Parts 1 and 2. */
 :root {
   --bg: #f3f4f7;
   --surface: #ffffff;
@@ -140,7 +140,7 @@ pre.code .cm { color: var(--muted); font-style: italic; }
     <div class="eyebrow">CUTLASS, step by step · Introduction</div>
     <h1>Terms, scale and shorthand</h1>
     <p class="lede">
-      Parts 1 to 3 build a matrix multiply, <span class="vC">C</span> = <span class="vA">A</span> · <span class="vB">B</span>, on a GPU shrunk to fit on screen.
+      Parts 1 and 2 build a matrix multiply, <span class="vC">C</span> = <span class="vA">A</span> · <span class="vB">B</span>, on a GPU shrunk to fit on screen.
       This page defines the words they use, lists where the small model differs from an NVIDIA Tesla T4, and translates the pseudo-code into CUDA C++.
     </p>
   </header>
@@ -220,7 +220,7 @@ pre.code .cm { color: var(--muted); font-style: italic; }
       <dd>The GPU's main memory (16 GB on a T4). Every thread can read and write it, but each trip takes hundreds of cycles. <span class="vA">A</span>, <span class="vB">B</span> and <span class="vC">C</span> live here.</dd>
 
       <dt>Shared memory</dt>
-      <dd>Small, fast memory on each SM. Each block gets its own piece, which all of its threads can read and write. Part 3's <span class="vA">As</span> and <span class="vB">Bs</span> live here.</dd>
+      <dd>Small, fast memory on each SM. Each block gets its own piece, which all of its threads can read and write. Part 2's <span class="vA">As</span> and <span class="vB">Bs</span> live here.</dd>
 
       <dt>Registers</dt>
       <dd>The fastest storage, private to one thread. Ordinary local variables such as <code>acc</code> live here.</dd>
@@ -232,13 +232,13 @@ pre.code .cm { color: var(--muted); font-style: italic; }
       <dd>A matrix stored row by row, so <code>A[row][k]</code> sits at address <code>A + row · N + k</code>. Numbers next to each other in a row are neighbors in memory.</dd>
 
       <dt>Coalesced load</dt>
-      <dd>When a warp's threads read neighboring addresses, the GPU serves them with a few wide memory transactions instead of one per thread. Part 2.</dd>
+      <dd>When a warp's threads read neighboring addresses, the GPU serves them with a few wide memory transactions instead of one per thread. Part 1.</dd>
 
       <dt>Tile</dt>
-      <dd>A small square piece of a matrix that a block copies into shared memory and works on before moving to the next. Part 3.</dd>
+      <dd>A small square piece of a matrix that a block copies into shared memory and works on before moving to the next. Part 2.</dd>
 
       <dt>Barrier</dt>
-      <dd>A point in the kernel where every thread of a block waits until all of them have reached it. Part 3's <code>sync()</code>.</dd>
+      <dd>A point in the kernel where every thread of a block waits until all of them have reached it. Part 2's <code>sync()</code>.</dd>
     </dl>
   </section>
 
@@ -256,13 +256,13 @@ pre.code .cm { color: var(--muted); font-style: italic; }
         <tbody>
           <tr><th scope="row">Threads per warp</th><td>4</td><td>32</td></tr>
           <tr><th scope="row">Matrix size</th><td>8 × 8</td><td>Any size. GEMMs worth a GPU are hundreds to thousands per side.</td></tr>
-          <tr><th scope="row">Threads per block</th><td>2 × 2 = 4 (Part 1)<br>4 × 4 = 16 (Parts 2, 3)</td><td>Up to 1,024. 16 × 16 = 256 is a common choice.</td></tr>
+          <tr><th scope="row">Threads per block</th><td>4 × 4 = 16</td><td>Up to 1,024. 16 × 16 = 256 is a common choice.</td></tr>
           <tr><th scope="row">Warps in a block</th><td>One row of the 4 × 4 block, because <code>blockDim.x</code> = 4</td><td>32 consecutive thread IDs, counted along <code>x</code> first. In a 16 × 16 block, each warp covers two rows.</td></tr>
-          <tr><th scope="row">Blocks</th><td>16 (Part 1), 4 (Parts 2, 3), all running at once</td><td>40 SMs, each holding up to 16 blocks and 1,024 threads at a time. Blocks beyond that wait for a free SM.</td></tr>
+          <tr><th scope="row">Blocks</th><td>4, all running at once</td><td>40 SMs, each holding up to 16 blocks and 1,024 threads at a time. Blocks beyond that wait for a free SM.</td></tr>
           <tr><th scope="row">Running "at the same time"</th><td>Every thread takes each step together</td><td>Each SM has 4 warp schedulers. Each one issues an instruction for one warp at a time, and switches to another warp while one waits for memory.</td></tr>
-          <tr><th scope="row">Memory piece (Part 2)</th><td>4 numbers</td><td>32-byte segments, 8 floats each. A warp reading 32 neighboring floats needs 4 segments: 128 bytes.</td></tr>
-          <tr><th scope="row">Tile (Part 3)</th><td>4 × 4. <span class="vA">As</span> and <span class="vB">Bs</span> take 128 bytes in all.</td><td>Usually 16 × 16 or 32 × 32. Shared memory is up to 64 KB per SM, and a block gets 48 KB unless it asks for more.</td></tr>
-          <tr><th scope="row">Shared memory banks</th><td>Not shown</td><td>32 banks. If two threads of a warp hit the same bank at different addresses, their reads take turns. Part 3's reads avoid this.</td></tr>
+          <tr><th scope="row">Memory chunk (Part 1)</th><td>4 numbers</td><td>32-byte segments, 8 floats each. A warp reading 32 neighboring floats needs 4 segments: 128 bytes.</td></tr>
+          <tr><th scope="row">Tile (Part 2)</th><td>4 × 4. <span class="vA">As</span> and <span class="vB">Bs</span> take 128 bytes in all.</td><td>Usually 16 × 16 or 32 × 32. Shared memory is up to 64 KB per SM, and a block gets 48 KB unless it asks for more.</td></tr>
+          <tr><th scope="row">Shared memory banks</th><td>Not shown</td><td>32 banks. If two threads of a warp hit the same bank at different addresses, their reads take turns. Part 2's reads avoid this.</td></tr>
           <tr><th scope="row">Work per thread</th><td>One number of <span class="vC">C</span></td><td>Fast kernels, including CUTLASS's, give each thread a small block of C to keep in registers.</td></tr>
           <tr><th scope="row">Arithmetic</th><td>One FP32 multiply-add per thread per step</td><td>2,560 FP32 cores, 8.1 TFLOPS. CUTLASS on a T4 mostly uses the 320 Tensor Cores instead: 65 TFLOPS in FP16.</td></tr>
         </tbody>
@@ -273,14 +273,14 @@ pre.code .cm { color: var(--muted); font-style: italic; }
   <section>
     <div class="prose">
       <h2>Shorthand and CUDA C++</h2>
-      <p>Part 3's pseudo-code leaves out C++ syntax. Each line maps to CUDA C++ like this.</p>
+      <p>The pseudo-code in Parts 1 and 2 leaves out C++ syntax. Each line maps to CUDA C++ like this.</p>
     </div>
     <div class="tbl-wrap">
       <table>
         <thead><tr><th scope="col">Pseudo-code</th><th scope="col">CUDA C++</th><th scope="col">Meaning</th><th scope="col">NVIDIA docs</th></tr></thead>
         <tbody>
           <tr><td><code>kernel f(…)</code></td><td><code>__global__ void f(…)</code></td><td>A function that runs on the GPU and is launched from the CPU.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#execution-space-specifiers">Execution space specifiers</a></td></tr>
-          <tr><td>(launch)</td><td><code>f&lt;&lt;&lt;grid, block&gt;&gt;&gt;(…)</code></td><td>Run <code>f</code> on <code>grid</code> blocks of <code>block</code> threads each. Both are <code>dim3</code> sizes. Parts 1 and 2 show this.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#kernel-configuration">Kernel configuration</a></td></tr>
+          <tr><td>(launch)</td><td><code>f&lt;&lt;&lt;grid, block&gt;&gt;&gt;(…)</code></td><td>Run <code>f</code> on <code>grid</code> blocks of <code>block</code> threads each. Both are <code>dim3</code> sizes.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#kernel-configuration">Kernel configuration</a></td></tr>
           <tr><td><code>threadIdx.x</code>, <code>blockIdx.y</code>, …</td><td>same</td><td>The built-in index and size variables.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#built-in-variables">Built-in variables</a></td></tr>
           <tr><td><code>shared As[4][4]</code></td><td><code>__shared__ float As[4][4];</code></td><td>One array per block in shared memory, seen by all of its threads.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#shared-memory"><code>__shared__</code> memory</a></td></tr>
           <tr><td><code>sync()</code></td><td><code>__syncthreads();</code></td><td>A barrier: wait until every thread of the block gets here.</td><td><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#thread-block-synchronization-functions">Thread block synchronization</a></td></tr>
@@ -291,7 +291,23 @@ pre.code .cm { color: var(--muted); font-style: italic; }
       </table>
     </div>
 
-    <div class="prose"><h3>Part 3's kernel in CUDA C++</h3></div>
+    <div class="prose"><h3>Part 1's kernel in CUDA C++</h3></div>
+<pre class="code"><span class="kw">__global__ void</span> matmul(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
+{
+    <span class="kw">int</span> row = blockIdx.y * blockDim.y + threadIdx.y;
+    <span class="kw">int</span> col = blockIdx.x * blockDim.x + threadIdx.x;   <span class="cm">// threadIdx.x along a row: coalesced</span>
+
+    <span class="kw">float</span> acc = 0.0f;
+    <span class="kw">for</span> (<span class="kw">int</span> k = 0; k &lt; N; k++)
+        acc += <span class="vA">A</span>[row * N + k] * <span class="vB">B</span>[k * N + col];
+    <span class="vC">C</span>[row * N + col] = acc;
+}
+
+dim3 block(4, 4);
+dim3 grid(N / 4, N / 4);
+matmul&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</pre>
+
+    <div class="prose"><h3>Part 2's kernel in CUDA C++</h3></div>
 <pre class="code"><span class="kw">constexpr int</span> TILE = 4;
 
 <span class="kw">__global__ void</span> matmul_tiled(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
@@ -332,7 +348,7 @@ matmul_tiled&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span
 
   <nav class="pager">
     <span></span>
-    <a href="cutlass-visualization-v2.html">Part 1: The naive kernel →</a>
+    <a href="cutlass-visualization-v2-naive.html">Part 1: Naive →</a>
   </nav>
 
 </main>

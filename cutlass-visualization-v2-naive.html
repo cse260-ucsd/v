@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Naive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
+<style>
+/* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
+   toolbar + follow and layout switches → step timeline → one-line caption → picture and chunk counts | pseudo-code.
+   The picture is the cross used on every page: A left, B on top, C bottom right, one thread per cell of C.
+   Cells carry no numbers: the lesson is which memory chunks each warp touches, and details live in hover tips.
+   A, B and C keep the same colors as Part 2. */
+:root {
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --sunken: #eef0f4;
+  --ink: #141821;
+  --muted: #586071;
+  --line: #d6dae2;
+  --line-strong: #8d95a5;
+
+  --a: #0f6fc0;  --a-ink: #0b5ea6;  --on-a: #ffffff;
+  --b: #d0640f;  --b-ink: #a24a06;  --on-b: #ffffff;
+  --c: #0d8a62;  --c-ink: #07704e;
+
+  --p0: 6%; --p1: 15%; --p2: 32%;
+  --a-0: color-mix(in srgb, var(--a) var(--p0), var(--surface));
+  --a-1: color-mix(in srgb, var(--a) var(--p1), var(--surface));
+  --a-2: color-mix(in srgb, var(--a) var(--p2), var(--surface));
+  --b-0: color-mix(in srgb, var(--b) var(--p0), var(--surface));
+  --b-1: color-mix(in srgb, var(--b) var(--p1), var(--surface));
+  --b-2: color-mix(in srgb, var(--b) var(--p2), var(--surface));
+  --c-1: color-mix(in srgb, var(--c) var(--p1), var(--surface));
+  --c-2: color-mix(in srgb, var(--c) var(--p2), var(--surface));
+  --hl: color-mix(in srgb, var(--ink) 9%, transparent);
+  --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
+
+  --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+    --line: #2b313c; --line-strong: #5d6676;
+    --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
+    --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
+    --c: #33bb8b; --c-ink: #6ad6ad;
+    --p0: 9%; --p1: 20%; --p2: 40%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+  --line: #2b313c; --line-strong: #5d6676;
+  --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
+  --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
+  --c: #33bb8b; --c-ink: #6ad6ad;
+  --p0: 9%; --p1: 20%; --p2: 40%;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--font-body); }
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.prose { max-width: 68ch; }
+.prose p { margin: 0 0 1em; }
+a { color: var(--a-ink); }
+
+h1 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+.prose .lede { font-size: 1.18rem; line-height: 1.55; margin-top: 24px; }
+
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunken); border-radius: 4px; padding: 0.08em 0.32em; }
+.vA { color: var(--a-ink); font-weight: 700; }
+.vB { color: var(--b-ink); font-weight: 700; }
+.vC { color: var(--c-ink); font-weight: 700; }
+.term { text-decoration: underline dotted var(--line-strong); text-decoration-thickness: 2px; text-underline-offset: 4px; cursor: help; }
+
+/* figure frame */
+.fig { margin: 28px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.fig-top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.btn {
+  font: 600 0.88rem var(--font-body); color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+}
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:hover:not(:disabled) { background: var(--sunken); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); min-width: 92px; justify-content: center; }
+.btn.primary:hover { background: var(--ink); opacity: 0.88; }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn:focus-visible, .seg button:focus-visible, .ts:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+
+.switch { display: flex; align-items: center; gap: 10px; }
+.switch .lbl { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--line); }
+.seg button {
+  padding: 6px 12px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+  font: 700 0.86rem var(--font-mono); color: var(--muted);
+}
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
+
+/* step timeline */
+.tl-bar { padding: 10px 16px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.timeline { display: flex; align-items: center; gap: 3px; width: max-content; margin: 0 auto; }
+.ts {
+  height: 30px; min-width: 34px; padding: 0 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  font: 700 0.78rem var(--font-mono); cursor: pointer;
+}
+.ts:hover { color: var(--ink); border-color: var(--line-strong); }
+.ts.done { background: var(--sunken); color: var(--ink); }
+.ts.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.tl-gap { width: 8px; flex: none; }
+
+.narration {
+  padding: 11px 16px; min-height: 3.4em;
+  border-bottom: 1px solid var(--line); background: var(--sunken);
+  font-size: 1.02rem; line-height: 1.55;
+}
+.narration code { background: var(--surface); }
+
+.fig-body { display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: start; }
+.stage { padding: 16px 12px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.side { padding: 16px; border-left: 1px solid var(--line); min-width: 0; }
+@media (max-width: 940px) {
+  .fig-body { grid-template-columns: minmax(0, 1fr); }
+  .side { border-left: 0; border-top: 1px solid var(--line); }
+}
+svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0 auto; touch-action: manipulation; }
+
+/* cells */
+.cell .hit { fill: transparent; }
+.cell .bg { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+.cell text {
+  font: 600 11px var(--font-mono); fill: var(--muted);
+  text-anchor: middle; dominant-baseline: central; pointer-events: none;
+}
+.cell .flash { fill: var(--c); opacity: 0; pointer-events: none; }
+.cell.pulse .flash { animation: flash 0.6s ease-out; }
+@keyframes flash { from { opacity: 0.45; } to { opacity: 0; } }
+
+.cell.a .bg { fill: var(--a-0); }
+.cell.b .bg { fill: var(--b-0); }
+.cell.a.strip .bg { fill: var(--a-1); }
+.cell.b.strip .bg { fill: var(--b-1); }
+.cell.a.cur .bg { fill: var(--a); stroke: var(--a); }
+.cell.b.cur .bg { fill: var(--b); stroke: var(--b); }
+.cell.c { cursor: pointer; }
+.cell.c.alt .bg { fill: var(--sunken); }
+.cell.c .fill { fill: var(--c-1); pointer-events: none; transition: y 0.3s, height 0.3s; }
+.cell.c.stored .bg { stroke: var(--c); }
+.cell.c.stored .fill { fill: var(--c-2); }
+.cell.hl .bg { stroke: var(--ink); stroke-width: 2.5; }
+
+.chunk { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 4 3; pointer-events: none; }
+.chunk.c-chunk { visibility: hidden; }
+.chunk.on { stroke-width: 3; stroke-dasharray: none; visibility: visible; }
+.chunk.a-chunk.on { stroke: var(--a-ink); }
+.chunk.b-chunk.on { stroke: var(--b-ink); }
+.chunk.c-chunk.on { stroke: var(--c-ink); }
+.pill { fill: none; stroke: var(--line-strong); stroke-width: 1.2; pointer-events: none; }
+.grp-mark { fill: none; stroke: var(--ink); stroke-width: 2.5; pointer-events: none; }
+.grp-mark.block { stroke-width: 3; }
+.tag { font: 600 11px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
+.tag.on { fill: var(--ink); font-weight: 700; }
+.mname { font: 800 20px var(--font-display); }
+.mname.a { fill: var(--a-ink); } .mname.b { fill: var(--b-ink); } .mname.c { fill: var(--c-ink); }
+.lg { cursor: help; }
+.lg-k { font: 700 13px var(--font-mono); fill: var(--ink); }
+.lg-s { font: 12px var(--font-body); fill: var(--muted); }
+.glyph-block { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+.glyph-thread { fill: var(--muted); }
+.glyph-cell { fill: var(--surface); stroke: var(--line); }
+.dots { pointer-events: none; }
+.dot.a { fill: var(--a); } .dot.b { fill: var(--b); }
+.dot.faint { opacity: 0.25; }
+
+.tip {
+  position: fixed; z-index: 10; pointer-events: none;
+  background: var(--ink); color: var(--bg);
+  font-size: 0.84rem; line-height: 1.45; padding: 7px 10px; border-radius: 7px;
+  max-width: 300px; width: max-content; box-shadow: 0 4px 14px var(--shadow);
+}
+.tip .vA, .tip .vB, .tip .vC { color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+.tip .vA { text-decoration-color: var(--a); } .tip .vB { text-decoration-color: var(--b); } .tip .vC { text-decoration-color: var(--c); }
+.tip code { background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; }
+
+/* code */
+.panel-h { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.code {
+  font: 12.5px/1.75 var(--font-mono); background: var(--sunken); border-radius: 8px;
+  padding: 8px 0; overflow-x: auto;
+}
+.code .ln { display: block; white-space: pre; padding: 0 14px; transition: background 0.15s; cursor: help; }
+.code .ln:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code .ln.on { background: var(--hl); box-shadow: inset 3px 0 0 var(--ink); }
+.code .ln.near { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.code .kw { font-weight: 700; }
+.code .tx { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
+.code .live:empty { display: none; }
+
+/* memory chunks: two bars under the picture */
+.meter { cursor: help; width: min(100%, 560px); margin: 0 auto; }
+.m-row { display: grid; grid-template-columns: 12em minmax(0, 1fr) 3em; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--muted); }
+.m-row + .m-row { margin-top: 6px; }
+.m-row .num { font: 700 0.9rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.m-row.now { color: var(--ink); font-weight: 600; }
+.track { height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
+.track i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--line-strong); transition: width 0.4s; }
+.m-row.now .track i { background: var(--ink); }
+
+.pager { margin-bottom: 32px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
+.pager a { text-decoration: none; }
+.pager a:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <nav class="pager">
+    <a href="cutlass-visualization-v2-intro.html">← Introduction</a>
+    <a href="cutlass-visualization-v2-shared-memory-tiling.html">Part 2: Shared memory tiling →</a>
+  </nav>
+
+  <header class="prose">
+    <h1>Naive</h1>
+    <p class="lede">
+      The simplest kernel gives every number of <span class="vC">C</span> its own thread, which reads a row of <span class="vA">A</span> and a column of <span class="vB">B</span> straight from global memory.
+      Memory serves the threads of a <span class="term" data-tip="warp">warp</span> together, so their loads are <span class="term" data-tip="coalesced">coalesced</span> only if the warp reads neighbors.
+      Which index comes from <code>threadIdx.x</code> decides that.
+    </p>
+  </header>
+
+  <div class="fig" id="fig">
+    <div class="fig-top">
+      <div class="switch">
+        <span class="lbl">Follow</span>
+        <div class="seg" id="seg-level" role="radiogroup" aria-label="Follow one thread, warp or block">
+          <button role="radio" data-level="thread">Thread</button>
+          <button role="radio" data-level="warp">Warp</button>
+          <button role="radio" data-level="block">Block</button>
+        </div>
+      </div>
+      <div class="switch">
+        <span class="lbl">Layout</span>
+        <div class="seg" id="seg-mode" role="radiogroup" aria-label="Which index comes from threadIdx.x">
+          <button role="radio" data-mode="row" data-tip="mode-row">threadIdx.x → row</button>
+          <button role="radio" data-mode="col" data-tip="mode-col">threadIdx.x → column</button>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn icon" data-act="restart" aria-label="Restart"><svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 7.3l1.4-.5A4 4 0 1 0 5 5.2L6.8 7H2V2.2l1.9 1.9A5.5 5.5 0 0 1 8 2.5z"/></svg></button>
+        <button class="btn icon" data-act="back" aria-label="Previous step"><svg viewBox="0 0 16 16"><path d="M10.5 2.5 5 8l5.5 5.5 1-1L7 8l4.5-4.5z"/></svg></button>
+        <button class="btn primary" data-act="play"></button>
+        <button class="btn icon" data-act="next" aria-label="Next step"><svg viewBox="0 0 16 16"><path d="M5.5 2.5 11 8l-5.5 5.5-1-1L9 8 4.5 3.5z"/></svg></button>
+      </div>
+    </div>
+    <div class="tl-bar"><div class="timeline" id="timeline" role="group" aria-label="Steps"></div></div>
+    <div class="narration" id="narr" aria-live="polite"></div>
+    <div class="fig-body">
+      <div class="stage">
+        <svg class="pic" id="pic" role="img" aria-label="Matrices A, B and C. Each cell of C is one thread; outlines in C group threads into warps of four. Dashed outlines in A and B are memory chunks."></svg>
+        <div class="meter" data-tip="meter">
+          <div class="panel-h" id="m-head"></div>
+          <div class="m-row" data-mode="row"><span>threadIdx.x → row</span><div class="track"><i></i></div><span class="num"></span></div>
+          <div class="m-row" data-mode="col"><span>threadIdx.x → column</span><div class="track"><i></i></div><span class="num"></span></div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="code" id="code" aria-label="Kernel pseudo-code">
+          <span class="ln" data-id="head"><span class="kw">kernel</span> matmul(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N):</span>
+          <span class="ln" data-id="row" id="ln-row"></span>
+          <span class="ln" data-id="col" id="ln-col"></span>
+          <span class="ln" data-id="acc">  acc = 0</span>
+          <span class="ln" data-id="for">  <span class="kw">for</span> k <span class="kw">in</span> 0 .. N − 1:<span class="live" id="live-k"></span></span>
+          <span class="ln" data-id="fma">    acc += <span class="vA">A</span>[row][k] · <span class="vB">B</span>[k][col]</span>
+          <span class="ln" data-id="store">  <span class="vC">C</span>[row][col] = acc</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const N = 8, BD = 4, NB = N / BD;          // N×N matrices, BD×BD threads per block, NB×NB blocks
+  const WARP = 4, CHUNK = 4;                  // illustration: 4-thread warps, memory chunks of 4 numbers
+  const TPB = BD * BD, WPB = TPB / WARP;      // threads and warps per block
+  const WARPS = (N * N) / WARP;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let mode = 'row';                           // 'row': threadIdx.x → row (uncoalesced), 'col': threadIdx.x → col
+  let level = 'warp';                         // follow a 'thread', a 'warp' or a 'block'
+  let anchor = 0;                             // global id of the thread we follow; its warp and block follow from it
+
+  // ---------- steps: setup · k = 0..N-1 · store ----------
+  const STEPS = [{ kind: 'setup' }];
+  for (let k = 0; k < N; k++) STEPS.push({ kind: 'fma', k });
+  STEPS.push({ kind: 'store' });
+  const LAST = STEPS.length - 1;
+  const kDoneAt = (pos) => (STEPS[pos].kind === 'fma' ? STEPS[pos].k + 1 : STEPS[pos].kind === 'store' ? N : 0);
+
+  // ---------- which thread owns which cell ----------
+  // A thread's global id is block * TPB + tid, with block = blockIdx.y * NB + blockIdx.x and tid = threadIdx.y * BD + threadIdx.x.
+  // Warps are runs of WARP consecutive ids, so they always share threadIdx.y and differ in threadIdx.x.
+  function threadOf(gid) {
+    const blk = Math.floor(gid / TPB), tid = gid % TPB;
+    return { bx: blk % NB, by: Math.floor(blk / NB), tx: tid % BD, ty: Math.floor(tid / BD) };
+  }
+  function cellOf(gid, m = mode) {
+    const t = threadOf(gid), x = t.bx * BD + t.tx, y = t.by * BD + t.ty;
+    return m === 'col' ? [y, x] : [x, y];       // [row, col]; x is the index fed by threadIdx.x
+  }
+  function gidOf(r, c, m = mode) {
+    const [x, y] = m === 'col' ? [c, r] : [r, c];
+    return (Math.floor(y / BD) * NB + Math.floor(x / BD)) * TPB + (y % BD) * BD + (x % BD);
+  }
+  const SIZE = { thread: 1, warp: WARP, block: TPB };
+  function group(lv = level, a = anchor) {
+    const n = SIZE[lv], first = Math.floor(a / n) * n;
+    return Array.from({ length: n }, (_, i) => first + i);
+  }
+  const warpOf = (gid) => Math.floor(gid / WARP);
+
+  // Memory serves whole warps: each warp's load costs one fetch per distinct chunk its threads touch.
+  const chunkOf = (i, j) => `${i}:${Math.floor(j / CHUNK)}`;
+  function warpLoad(w, k, m = mode) {
+    const cs = group('warp', w * WARP).map((g) => cellOf(g, m));
+    return { A: new Set(cs.map(([r]) => chunkOf(r, k))), B: new Set(cs.map(([, c]) => chunkOf(k, c))) };
+  }
+  const warpStore = (w, m = mode) => new Set(group('warp', w * WARP).map((g) => chunkOf(...cellOf(g, m))));
+  // chunks fetched through step pos by the warps of the followed group (or of every warp)
+  function fetched(pos, m, warps) {
+    let t = 0;
+    for (const w of warps) {
+      for (let k = 0; k < kDoneAt(pos); k++) { const s = warpLoad(w, k, m); t += s.A.size + s.B.size; }
+      if (STEPS[pos].kind === 'store') t += warpStore(w, m).size;
+    }
+    return t;
+  }
+  const ALL_WARPS = Array.from({ length: WARPS }, (_, w) => w);
+  const TOTAL = { row: fetched(LAST, 'row', ALL_WARPS), col: fetched(LAST, 'col', ALL_WARPS) };
+  const groupWarps = () => [...new Set(group().map(warpOf))];
+
+  // what the followed thread / warp / block touches this step, and what it costs
+  function groupLoad(k) {
+    const gids = group(), cells = gids.map((g) => cellOf(g));
+    const hitA = new Set(cells.map(([r]) => chunkOf(r, k))), hitB = new Set(cells.map(([, c]) => chunkOf(k, c)));
+    let a = 0, b = 0;
+    for (const w of new Set(gids.map(warpOf))) { const s = warpLoad(w, k); a += s.A.size; b += s.B.size; }
+    return { hitA, hitB, a, b };
+  }
+  function groupStore() {
+    const gids = group(), hit = new Set(gids.map((g) => chunkOf(...cellOf(g))));
+    let n = 0;
+    for (const w of new Set(gids.map(warpOf))) n += warpStore(w).size;
+    return { hit, n };
+  }
+  function groupName() {
+    if (level === 'thread') { const [r, c] = cellOf(anchor); return `thread for C[${r}][${c}]`; }
+    if (level === 'warp') return `warp ${warpOf(anchor)}`;
+    const t = threadOf(anchor);
+    return `block (${t.bx}, ${t.by})`;
+  }
+
+  // ---------- picture: A left, B on top, C bottom right ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const $ = (s) => document.querySelector(s);
+  const toggle = (node, name, on) => node.classList.toggle(name, !!on);
+  const text = (parent, x, y, s, cls) => { const t = el('text', { x, y, class: cls }, parent); t.textContent = s; return t; };
+  const setBox = (node, b) => { for (const k in b) node.setAttribute(k, b[k]); };
+
+  const G = { cell: 38, gap: 26, pad: 4 };
+  G.xA = G.pad; G.yB = G.pad;
+  G.xC = G.xA + N * G.cell + G.gap;
+  G.yC = G.yB + N * G.cell + G.gap;
+  G.xEnd = G.xC + N * G.cell;
+  G.yEnd = G.yC + N * G.cell;
+  const mid = (i) => i * G.cell + G.cell / 2;
+  const span = BD * G.cell;
+
+  const svg = $('#pic');
+  svg.setAttribute('viewBox', `0 0 ${G.xEnd + 52} ${G.yEnd + 46}`);
+  const cells = el('g', {}, svg);
+  function cell(kind, x, y, i, j) {
+    const g = el('g', { class: `cell ${kind}`, transform: `translate(${x} ${y})` }, cells);
+    el('rect', { class: 'hit', width: G.cell, height: G.cell }, g);   // covers the gap to the next cell, so hover doesn't drop out between cells
+    el('rect', { class: 'bg', x: 1.5, y: 1.5, width: G.cell - 3, height: G.cell - 3, rx: 4 }, g);
+    if (kind === 'c') {
+      g.fill = el('rect', { class: 'fill', x: 1.5, y: G.cell - 1.5, width: G.cell - 3, height: 0, rx: 4 }, g);
+      el('rect', { class: 'flash', x: 1.5, y: 1.5, width: G.cell - 3, height: G.cell - 3, rx: 4 }, g);
+      g.t = el('text', { x: G.cell / 2, y: G.cell / 2 + 0.5 }, g);
+    }
+    Object.assign(g.dataset, { kind, i, j });
+    return g;
+  }
+  const PA = [], PB = [], PC = [];
+  for (let i = 0; i < N; i++) {
+    PA.push([]); PB.push([]); PC.push([]);
+    for (let j = 0; j < N; j++) {
+      PA[i].push(cell('a', G.xA + j * G.cell, G.yC + i * G.cell, i, j));
+      PB[i].push(cell('b', G.xC + j * G.cell, G.yB + i * G.cell, i, j));
+      const c = cell('c', G.xC + j * G.cell, G.yC + i * G.cell, i, j);
+      toggle(c, 'alt', (Math.floor(i / BD) + Math.floor(j / BD)) % 2);   // checkerboard of blocks
+      PC[i].push(c);
+    }
+  }
+
+  // memory chunks: runs of CHUNK neighbors within a row
+  const chunks = { A: {}, B: {}, C: {} };
+  function chunkRects(kind, x0, y0) {
+    for (let i = 0; i < N; i++)
+      for (let j = 0; j < N / CHUNK; j++)
+        chunks[kind][`${i}:${j}`] = el('rect', {
+          class: `chunk ${kind.toLowerCase()}-chunk`, rx: 6,
+          x: x0 + j * CHUNK * G.cell + 0.5, y: y0 + i * G.cell + 0.5, width: CHUNK * G.cell - 1, height: G.cell - 1,
+        }, svg);
+  }
+  chunkRects('A', G.xA, G.yC);
+  chunkRects('B', G.xC, G.yB);
+  chunkRects('C', G.xC, G.yC);
+
+  function bbox(cs, inset) {
+    const rs = cs.map(([r]) => r), ks = cs.map(([, c]) => c);
+    const r0 = Math.min(...rs), r1 = Math.max(...rs), c0 = Math.min(...ks), c1 = Math.max(...ks);
+    return { x: G.xC + c0 * G.cell + inset, y: G.yC + r0 * G.cell + inset,
+      width: (c1 - c0 + 1) * G.cell - 2 * inset, height: (r1 - r0 + 1) * G.cell - 2 * inset };
+  }
+  const groupBox = (lv, gid) => bbox(group(lv, gid).map((g) => cellOf(g)), lv === 'block' ? -1.5 : 0.5);
+  const pills = Array.from({ length: WARPS }, () => el('rect', { class: 'pill', rx: 8 }, svg));
+  const mark = el('rect', { class: 'grp-mark', rx: 6 }, svg);
+  const hoverMark = el('rect', { class: 'grp-mark', rx: 6, visibility: 'hidden' }, svg);   // hovering C outlines a thread, warp or block, as followed
+  const dots = el('g', { class: 'dots' }, svg);
+
+  text(svg, G.xEnd + 10, G.yB + 20, 'B', 'mname b');
+  text(svg, G.xA, G.yEnd + 30, 'A', 'mname a');
+  text(svg, G.xEnd + 10, G.yEnd + 30, 'C', 'mname c');
+  const kA = text(svg, 0, G.yC - G.gap / 2, '', 'tag on');
+  const kB = text(svg, G.xC - G.gap / 2, 0, '', 'tag on');
+
+  // grid axes: which blockIdx runs along C's columns and rows depends on the layout
+  for (let b = 0; b < NB; b++) {
+    text(svg, G.xC + b * span + span / 2, G.yEnd + 14, b, 'tag');
+    text(svg, G.xEnd + 14, G.yC + b * span + span / 2, b, 'tag');
+  }
+  const xTitle = text(svg, G.xC + (N * G.cell) / 2, G.yEnd + 32, '', 'tag');
+  const yTitle = text(svg, G.xEnd + 34, G.yC + (N * G.cell) / 2, '', 'tag');
+  yTitle.setAttribute('transform', `rotate(90 ${G.xEnd + 34} ${G.yC + (N * G.cell) / 2})`);
+
+  // legend in the empty top-left corner
+  const legend = (y, tip) => { const g = el('g', { class: 'lg', transform: `translate(${G.xA + 22} ${G.yB + 34 + y})` }, svg); g.dataset.tip = tip; return g; };
+  let lg = legend(0, 'grid');
+  for (let by = 0; by < NB; by++)
+    for (let bx = 0; bx < NB; bx++)
+      el('rect', { class: 'glyph-block', x: bx * 23, y: by * 23, width: 20, height: 20, rx: 3 }, lg);
+  text(lg, 66, 14, `gridDim = (${NB}, ${NB})`, 'lg-k');
+  text(lg, 66, 34, `${NB * NB} blocks`, 'lg-s');
+  lg = legend(72, 'block');
+  el('rect', { class: 'glyph-block', x: 0, y: 0, width: 46, height: 46, rx: 4 }, lg);
+  for (let ty = 0; ty < BD; ty++) {
+    el('rect', { class: 'pill', x: 3, y: 3 + ty * 10, width: 40, height: 9, rx: 4.5 }, lg);
+    for (let tx = 0; tx < BD; tx++) el('circle', { class: 'glyph-thread', cx: 8 + tx * 10, cy: 7.5 + ty * 10, r: 2.6 }, lg);
+  }
+  text(lg, 66, 16, `blockDim = (${BD}, ${BD})`, 'lg-k');
+  text(lg, 66, 36, `${WPB} warps of ${WARP} threads,`, 'lg-s');
+  text(lg, 66, 52, 'consecutive threadIdx.x', 'lg-s');
+  lg = legend(172, 'chunk');
+  for (let j = 0; j < CHUNK; j++) el('rect', { class: 'glyph-cell', x: j * 11.5, y: 2, width: 10, height: 18, rx: 2 }, lg);
+  el('rect', { class: 'chunk', x: -2, y: 0, width: 50, height: 22, rx: 5 }, lg);
+  text(lg, 66, 8, 'memory chunk', 'lg-k');
+  text(lg, 66, 28, `${CHUNK} neighbors in a row,`, 'lg-s');
+  text(lg, 66, 44, 'fetched together', 'lg-s');
+
+  // ---------- code ----------
+  const MAP = {
+    row: [
+      `  row = blockIdx.x · 4 + <span class="tx">threadIdx.x</span>`,
+      `  col = blockIdx.y · 4 + threadIdx.y`,
+    ],
+    col: [
+      `  row = blockIdx.y · 4 + threadIdx.y`,
+      `  col = blockIdx.x · 4 + <span class="tx">threadIdx.x</span>`,
+    ],
+  };
+  const codeLines = [...document.querySelectorAll('#code .ln')];
+  function codeOn(on, near = []) {
+    codeLines.forEach((ln) => { toggle(ln, 'on', on.includes(ln.dataset.id)); toggle(ln, 'near', near.includes(ln.dataset.id)); });
+  }
+  const CODE = { setup: [['row', 'col']], fma: [['fma'], ['for']], store: [['store']] };
+
+  // ---------- one-line caption ----------
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const list = (name, pairs) => pairs.map(([i, j]) => `${name}[${i}][${j}]`).join(', ');
+  function narrate(s) {
+    const rowMode = mode === 'row';
+    if (s.kind === 'setup') return `Every block splits into warps of ${WARP} threads with consecutive <code>threadIdx.x</code>. ` +
+      (rowMode
+        ? `Here <code>row</code> comes from <code>threadIdx.x</code>, so each warp runs <b>down a column</b> of <span class="vC">C</span>.`
+        : `Here <code>col</code> comes from <code>threadIdx.x</code>, so each warp runs <b>along a row</b> of <span class="vC">C</span>.`) +
+      ` Each thread is labeled with its <code>threadIdx</code>.`;
+
+    if (s.kind === 'store') {
+      const st = groupStore();
+      if (level === 'thread') {
+        const [r, c] = cellOf(anchor), n = warpStore(warpOf(anchor)).size;
+        return `This thread writes its sum to <span class="vC">C[${r}][${c}]</span>. Its warp's four writes take <b>${plural(n, 'chunk')}</b>.`;
+      }
+      if (level === 'block') return `The block's ${WPB} warps write their ${TPB} results in <b>${plural(st.n, 'chunk')}</b>.`;
+      return rowMode
+        ? `Every thread writes its sum. Warp ${warpOf(anchor)}'s four results land in four different rows of <span class="vC">C</span>: <b>4 chunks</b>.`
+        : `Every thread writes its sum. Warp ${warpOf(anchor)}'s four results sit side by side in one row of <span class="vC">C</span>: <b>1 chunk</b>.`;
+    }
+
+    const k = s.k;
+    if (level === 'thread') {
+      const [r, c] = cellOf(anchor), w = warpOf(anchor), ld = warpLoad(w, k);
+      return `<b>k = ${k}</b>: this thread needs <span class="vA">A[${r}][${k}]</span> and <span class="vB">B[${k}][${c}]</span>, ` +
+        `one number from each, in either layout. Memory serves whole warps, though: its warp ${w} asks for <b>${plural(ld.A.size + ld.B.size, 'chunk')}</b>.`;
+    }
+    if (level === 'block') {
+      const L = groupLoad(k);
+      return `<b>k = ${k}</b>: the block's ${WPB} warps each send their own request: <b>${L.a + L.b} chunks</b> ` +
+        `(${L.a} from A, ${L.b} from B), though they cover only ${L.hitA.size + L.hitB.size} different chunks.`;
+    }
+    const w = warpOf(anchor), cs = group().map((g) => cellOf(g)), ld = warpLoad(w, k);
+    if (k > 0) return `<b>k = ${k}</b>: all ${WARPS} warps load at the same time. Warp ${w} touches ` +
+      `<b>${ld.A.size}</b> ${ld.A.size === 1 ? 'chunk' : 'chunks'} of <span class="vA">A</span> and <b>${ld.B.size}</b> of <span class="vB">B</span>.`;
+    return rowMode
+      ? `<b>k = 0</b>: warp ${w} needs <span class="vA">${list('A', cs.map(([r]) => [r, k]))}</span>. They sit in four different rows, ` +
+        `so memory fetches <b>4 chunks</b> and uses one number from each. All four threads share <span class="vB">B[${k}][${cs[0][1]}]</span>: 1 chunk.`
+      : `<b>k = 0</b>: warp ${w} needs <span class="vB">${list('B', cs.map(([, c]) => [k, c]))}</span>. They sit side by side, ` +
+        `so memory fetches them as <b>1 chunk</b>. All four threads share <span class="vA">A[${cs[0][0]}][${k}]</span>: 1 more chunk.`;
+  }
+
+  // ---------- memory chunks fetched so far: both layouts ----------
+  function meter(pos) {
+    const ws = groupWarps(), max = Math.max(fetched(LAST, 'row', ws), fetched(LAST, 'col', ws));
+    $('#m-head').textContent = `Memory chunks fetched · ${level === 'thread' ? `warp ${warpOf(anchor)}, for this thread` : groupName()}`;
+    document.querySelectorAll('.m-row').forEach((row) => {
+      const n = fetched(pos, row.dataset.mode, ws);
+      row.querySelector('.num').textContent = n;
+      row.querySelector('.track i').style.width = `${(100 * n) / max}%`;
+      toggle(row, 'now', row.dataset.mode === mode);
+    });
+  }
+
+  // ---------- one step, drawn at rest ----------
+  function threadCell(g, kDone) {                   // the bar fills as acc sums more of its N products
+    const h = (G.cell - 3) * (kDone / N);
+    g.fill.setAttribute('y', G.cell - 1.5 - h);
+    g.fill.setAttribute('height', h);
+  }
+  function paint(pos) {
+    const s = STEPS[pos], k = s.kind === 'fma' ? s.k : -1, kDone = kDoneAt(pos);
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      toggle(PA[i][j], 'strip', j === k); toggle(PB[i][j], 'strip', i === k);
+      toggle(PA[i][j], 'cur', false); toggle(PB[i][j], 'cur', false);
+      const c = PC[i][j], t = threadOf(gidOf(i, j));
+      c.t.textContent = `${t.tx},${t.ty}`;
+      threadCell(c, kDone);
+      toggle(c, 'stored', s.kind === 'store');
+    }
+    Object.values(chunks).forEach((m) => Object.values(m).forEach((rc) => rc.classList.remove('on')));
+    if (k >= 0) {
+      for (const [r, c] of group().map((g) => cellOf(g))) { PA[r][k].classList.add('cur'); PB[k][c].classList.add('cur'); }
+      const L = groupLoad(k);
+      L.hitA.forEach((key) => chunks.A[key].classList.add('on'));
+      L.hitB.forEach((key) => chunks.B[key].classList.add('on'));
+    } else if (s.kind === 'store') {
+      groupStore().hit.forEach((key) => chunks.C[key].classList.add('on'));
+    }
+    kA.textContent = kB.textContent = k >= 0 ? `k=${k}` : '';
+    kA.setAttribute('x', G.xA + mid(Math.max(k, 0)));
+    kB.setAttribute('y', G.yB + mid(Math.max(k, 0)));
+
+    pills.forEach((p, w) => setBox(p, groupBox('warp', w * WARP)));
+    setBox(mark, groupBox(level, anchor));
+    mark.setAttribute('class', `grp-mark ${level}`);
+
+    codeOn(...CODE[s.kind]);
+    $('#live-k').textContent = k >= 0 ? `k = ${k}` : '';
+    $('#narr').innerHTML = narrate(s);
+    meter(pos);
+    document.querySelectorAll('#timeline .ts').forEach((b) => {
+      const p = +b.dataset.pos;
+      toggle(b, 'on', p === pos); toggle(b, 'done', p < pos);
+    });
+    const bar = $('.tl-bar'), on = bar.querySelector('.ts.on');       // on narrow screens, keep the current step in view
+    if (bar.scrollWidth > bar.clientWidth) {
+      const b = on.getBoundingClientRect(), r = bar.getBoundingClientRect();
+      bar.scrollLeft += b.left + b.width / 2 - (r.left + r.width / 2);
+    }
+  }
+
+  // ---------- motion ----------
+  let token = 0;
+  function cancel() { token++; dots.replaceChildren(); }
+  function pulse(nodes) {
+    nodes.forEach((g) => g.classList.remove('pulse'));
+    svg.getBoundingClientRect();                   // restart the flash on every node in the same frame
+    nodes.forEach((g) => g.classList.add('pulse'));
+  }
+  function animateFma(k) {                         // every thread loads at once; threads outside the followed group are faint
+    const my = token, t0 = performance.now(), dur = 520, items = [], mine = new Set(group());
+    PC.flat().forEach((g) => threadCell(g, k));
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const faint = mine.has(gidOf(r, c)) ? '' : ' faint', to = [G.xC + mid(c), G.yC + mid(r)];
+      items.push({ n: el('circle', { r: 4.5, class: `dot a${faint}` }, dots), from: [G.xA + mid(k), G.yC + mid(r)], to });
+      items.push({ n: el('circle', { r: 4.5, class: `dot b${faint}` }, dots), from: [G.xC + mid(c), G.yB + mid(k)], to });
+    }
+    (function frame(now) {
+      if (my !== token) return;
+      const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      for (const d of items) {
+        d.n.setAttribute('cx', d.from[0] + (d.to[0] - d.from[0]) * e);
+        d.n.setAttribute('cy', d.from[1] + (d.to[1] - d.from[1]) * e);
+      }
+      if (p < 1) { requestAnimationFrame(frame); return; }
+      dots.replaceChildren();
+      PC.flat().forEach((g) => threadCell(g, k + 1));
+      pulse(PC.flat());
+    })(t0);
+  }
+
+  function render(pos, animate) {
+    cancel();
+    paint(pos);
+    if (!animate || reduceMotion) return;
+    const s = STEPS[pos];
+    if (s.kind === 'fma') animateFma(s.k);
+    else if (s.kind === 'store') pulse(PC.flat());
+  }
+
+  // ---------- hover tips ----------
+  const TIPS = {
+    warp: 'A group of threads with consecutive <code>threadIdx.x</code>: 32 on a real GPU, 4 here. The hardware issues one instruction for the whole warp and sends its memory requests together.',
+    coalesced: 'When a warp reads neighboring addresses, the GPU serves it with a few wide transactions instead of one per thread. Matrices are stored row by row, so neighbors sit along a row: let <code>threadIdx.x</code> run along a row. A real warp of 32 then reads 128 neighboring bytes, against 32 separate pieces when it runs down a column.',
+    'mode-row': 'Uncoalesced: each warp runs down a column of C.',
+    'mode-col': 'Coalesced: each warp runs along a row of C.',
+    grid: 'The launch makes N / 4 × N / 4 = 2 × 2 blocks. Their <code>blockIdx</code> runs along the axes of C.',
+    block: 'Each block has 4 × 4 threads, one per cell of its square in C. Each row of 4 consecutive <code>threadIdx.x</code> is a warp.',
+    chunk: 'Memory hands out neighbors in fixed pieces, 4 numbers here (32 bytes on a T4). A warp\'s load costs one fetch per chunk its threads touch.',
+    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 4 threads.',
+    acc: 'The running sum lives in a register, private to the thread. C is only written at the end.',
+    for: 'N = 8 steps. At each one, every thread loads one number of A and one of B from global memory.',
+    fma: 'A[row][k] is needed by all 8 threads in that row of C, and each loads it separately. Every number of A and B gets loaded 8 times: 1,024 loads for 128 numbers.',
+    store: 'Each thread writes its finished sum to C, once.',
+  };
+  function lineTip(id) {
+    if (id !== 'row' && id !== 'col') return TIPS[id];
+    if ((id === 'row') !== (mode === 'row')) return '<code>threadIdx.y</code> is the same for every thread of a warp.';
+    return id === 'row'
+      ? '<code>threadIdx.x</code> feeds <code>row</code>, so a warp\'s 4 threads take 4 different rows of C: the warp runs down a column. 4 is <code>blockDim.x</code>.'
+      : '<code>threadIdx.x</code> feeds <code>col</code>, so a warp\'s 4 threads take 4 neighboring columns of C: the warp runs along a row. 4 is <code>blockDim.x</code>.';
+  }
+  function meterTip() {
+    return 'Memory serves whole warps, so this counts the chunks fetched by the followed warps, in both layouts. ' +
+      `Whole kernel: ${TOTAL.row} chunks with <code>threadIdx.x</code> → row, ${TOTAL.col} with <code>threadIdx.x</code> → column.`;
+  }
+  function stepTip(p) {
+    const s = STEPS[p];
+    if (s.kind === 'setup') return '<b>Setup</b><br>Each thread works out its row and column from its block and thread index.';
+    if (s.kind === 'fma') return `<b>k = ${s.k}</b><br>Every thread loads A[row][k] and B[k][col] from global memory and adds their product to acc.`;
+    return '<b>Store</b><br>Each thread writes its sum to C.';
+  }
+  // hovering a number rings the threads that read it; hovering a thread rings what it reads
+  function cellTip(g) {
+    const kind = g.dataset.kind, i = +g.dataset.i, j = +g.dataset.j, marks = [];
+    let html, outline = null;
+    if (kind === 'a') {
+      html = `<b><span class="vA">A[${i}][${j}]</span></b><br>Read at k = ${j} by the 8 threads in row ${i} of C, each with its own load.`;
+      for (let c = 0; c < N; c++) marks.push(PC[i][c]);
+    } else if (kind === 'b') {
+      html = `<b><span class="vB">B[${i}][${j}]</span></b><br>Read at k = ${i} by the 8 threads in column ${j} of C, each with its own load.`;
+      for (let r = 0; r < N; r++) marks.push(PC[r][j]);
+    } else {
+      const gid = gidOf(i, j), t = threadOf(gid);
+      html = `<b><span class="vC">C[${i}][${j}]</span></b><br>Thread (${t.tx}, ${t.ty}) of block (${t.bx}, ${t.by}), warp ${warpOf(gid)}. ` +
+        `Reads row ${i} of <span class="vA">A</span> and column ${j} of <span class="vB">B</span>.<br>Click to follow it.`;
+      for (let k = 0; k < N; k++) marks.push(PA[i][k], PB[k][j]);
+      outline = groupBox(level, gid);
+    }
+    return { html, marks, outline };
+  }
+
+  const tip = $('#tip');
+  let tipNode = null, tipMarks = [];
+  function showTip(node) {
+    tipMarks.forEach((m) => m.classList.remove('hl'));
+    tipMarks = [];
+    hoverMark.setAttribute('visibility', 'hidden');
+    tipNode = node;
+    if (!node) { tip.hidden = true; return; }
+    let html, outline;
+    if (node.dataset.kind) ({ html, marks: tipMarks, outline } = cellTip(node));
+    else if (node.dataset.pos != null) html = stepTip(+node.dataset.pos);
+    else if (node.dataset.tip === 'meter') html = meterTip();
+    else html = node.dataset.tip ? TIPS[node.dataset.tip] : lineTip(node.dataset.id);
+    if (!html) { tip.hidden = true; return; }
+    tipMarks.forEach((m) => m.classList.add('hl'));
+    if (outline) {
+      setBox(hoverMark, outline);
+      hoverMark.setAttribute('class', `grp-mark ${level}`);
+      hoverMark.setAttribute('visibility', 'visible');
+    }
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const rc = node.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    const x = Math.max(8, Math.min(innerWidth - w - 8, rc.left + rc.width / 2 - w / 2));
+    const y = rc.top - h - 8 >= 8 ? rc.top - h - 8 : rc.bottom + 8;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  }
+  const HOVER = '.cell, [data-tip], #code .ln, #timeline [data-pos]';
+  document.addEventListener('pointerover', (e) => {
+    const node = e.target.closest(HOVER);
+    if (node !== tipNode) showTip(node);
+  });
+  document.addEventListener('scroll', () => showTip(null), { passive: true });
+
+  // ---------- controls ----------
+  const fig = $('#fig');
+  const playBtn = fig.querySelector('[data-act=play]');
+  const backBtn = fig.querySelector('[data-act=back]');
+  const nextBtn = fig.querySelector('[data-act=next]');
+  const ICON_PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
+  const DWELL = { setup: 1600, fma: 1500, store: 2000 };
+  let pos = 0, timer = null;
+
+  function sync() {
+    playBtn.innerHTML = timer ? `${ICON_PAUSE}Pause` : `${ICON_PLAY}${pos === LAST ? 'Replay' : 'Play'}`;
+    backBtn.disabled = pos === 0;
+    nextBtn.disabled = pos === LAST;
+  }
+  function go(i, animate) {
+    pos = Math.max(0, Math.min(LAST, i));
+    render(pos, animate);
+    sync();
+    if (tipNode) showTip(tipNode);
+  }
+  function stop() { clearTimeout(timer); timer = null; sync(); }
+  function tick() { timer = setTimeout(() => { if (pos === LAST) stop(); else { go(pos + 1, true); tick(); } }, DWELL[STEPS[pos].kind]); }
+  function play() { if (pos === LAST) go(0, false); else go(pos + 1, true); tick(); sync(); }
+
+  fig.querySelector('[data-act=restart]').addEventListener('click', () => { stop(); go(0, false); });
+  backBtn.addEventListener('click', () => { stop(); go(pos - 1, false); });
+  nextBtn.addEventListener('click', () => { stop(); go(pos + 1, true); });
+  playBtn.addEventListener('click', () => (timer ? stop() : play()));
+  function setLevel(lv) {
+    level = lv;
+    document.querySelectorAll('#seg-level button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.level === lv)));
+  }
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('#seg-mode button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === m)));
+    $('#ln-row').innerHTML = MAP[m][0];
+    $('#ln-col').innerHTML = MAP[m][1];
+    xTitle.textContent = m === 'col' ? 'blockIdx.x →' : 'blockIdx.y →';
+    yTitle.textContent = m === 'col' ? 'blockIdx.y →' : 'blockIdx.x →';
+  }
+  document.querySelectorAll('#seg-level button').forEach((b) => b.addEventListener('click', () => { setLevel(b.dataset.level); go(pos, false); }));
+  document.querySelectorAll('#seg-mode button').forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.mode); go(pos, false); }));
+  svg.addEventListener('click', (e) => {
+    const g = e.target.closest('.cell.c');
+    if (!g) return;
+    anchor = gidOf(+g.dataset.i, +g.dataset.j);
+    go(pos, false);
+  });
+  fig.addEventListener('keydown', (e) => {
+    if (e.target.closest('.seg')) return;
+    if (e.key === 'ArrowRight') { stop(); if (pos < LAST) go(pos + 1, true); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { stop(); go(pos - 1, false); e.preventDefault(); }
+  });
+
+  // timeline: setup | k=0..7 | store
+  (function buildTimeline() {
+    const btn = (p, label) => `<button class="ts" data-pos="${p}">${label}</button>`;
+    let html = btn(0, 'setup') + '<span class="tl-gap"></span>';
+    for (let k = 0; k < N; k++) html += btn(k + 1, `k=${k}`);
+    html += '<span class="tl-gap"></span>' + btn(LAST, 'store');
+    const tl = $('#timeline');
+    tl.innerHTML = html;
+    tl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pos]');
+      if (b) { stop(); const to = +b.dataset.pos; go(to, to === pos + 1); }
+    });
+  })();
+
+  setMode('row');
+  setLevel('warp');
+  go(0, false);
+})();
+</script>
+</body>
+</html>

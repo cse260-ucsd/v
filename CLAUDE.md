@@ -1,7 +1,7 @@
 # CUTLASS, step by step
 
 Self-contained interactive HTML pages (no build step) teaching GPU matrix multiply.
-Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-v2.html`) → Part 2 (`-coalescing`) → Part 3 (`-shared-memory-tiling`), linked by each page's pager.
+Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-naive`) → Part 2 (`-shared-memory-tiling`), linked by each page's pager.
 
 ## Decisions
 

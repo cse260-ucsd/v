@@ -12,7 +12,7 @@
    toolbar + follow switch → step timeline → one-line caption → picture and read counts | pseudo-code.
    The picture pairs global memory (A, B, C) with one block on the chip (its shared tiles As, Bs around its threads).
    Cells carry no numbers: the lesson is where data moves, and details live in hover tips.
-   A, B and C keep the same colors as Parts 1 and 2. */
+   A, B and C keep the same colors as Part 1. */
 :root {
   --bg: #f3f4f7;
   --surface: #ffffff;
@@ -272,7 +272,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 <main class="page">
 
   <nav class="pager">
-    <a href="cutlass-visualization-v2-coalescing.html">← Part 2: Coalesced loads</a>
+    <a href="cutlass-visualization-v2-naive.html">← Part 1: Naive</a>
   </nav>
 
   <header class="prose">
@@ -308,7 +308,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
         <div class="meter" data-tip="meter">
           <div class="panel-h" id="m-head"></div>
           <div class="m-row now"><span>with tiles</span><div class="track"><i id="b-tiled"></i></div><span class="num" id="m-tiled"></span></div>
-          <div class="m-row"><span>without (Part 2)</span><div class="track"><i id="b-naive"></i></div><span class="num" id="m-naive"></span></div>
+          <div class="m-row"><span>without (Part 1)</span><div class="track"><i id="b-naive"></i></div><span class="num" id="m-naive"></span></div>
         </div>
       </div>
       <div class="side">
@@ -365,13 +365,13 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   }
 
   // ---------- who we follow ----------
-  // Threads use Part 2's coalesced mapping: row = blockIdx.y*T + ty, col = blockIdx.x*T + tx. A warp is one row of a block.
+  // Threads use Part 1's coalesced mapping: row = blockIdx.y*T + ty, col = blockIdx.x*T + tx. A warp is one row of a block.
   let level = 'block';
   const anchor = { bx: 1, by: 0, tx: 2, ty: 1 };  // a thread; its warp and block follow from it
   const SIZE = { thread: 1, warp: T, block: T * T };
   const inGroup = (tx, ty) => level === 'block' || (ty === anchor.ty && (level === 'warp' || tx === anchor.tx));
   const R0 = () => anchor.by * T, C0 = () => anchor.bx * T;
-  const warpNo = (bx, by, ty) => (by * NB + bx) * T + ty;       // numbered as in Part 2
+  const warpNo = (bx, by, ty) => (by * NB + bx) * T + ty;       // numbered as in Part 1
   const blockName = () => `block (${anchor.bx}, ${anchor.by})`;
   function group() {
     const out = [];
@@ -397,7 +397,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   const text = (parent, x, y, s, cls) => { const t = el('text', { x, y, class: cls }, parent); t.textContent = s; return t; };
   const setBox = (node, b) => { for (const k in b) node.setAttribute(k, b[k]); };
 
-  // both views are the same cross as Parts 1 and 2: left operand left, top operand on top, result bottom right
+  // both views are the same cross as Part 1: left operand left, top operand on top, result bottom right
   const GL = { cell: 22, gap: 12 };
   GL.m = N * GL.cell; GL.size = 2 * GL.m + GL.gap;
   GL.A = [0, GL.m + GL.gap]; GL.B = [GL.m + GL.gap, 0]; GL.C = [GL.m + GL.gap, GL.m + GL.gap];
@@ -558,7 +558,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     return `This thread writes its sum to ${vC(`C[${r}][${c}]`)}.`;
   }
 
-  // ---------- global reads: this kernel against Part 2's ----------
+  // ---------- global reads: this kernel against Part 1's ----------
   function meter(pos) {
     const { kDone, loads } = progress(pos), n = SIZE[level];
     const tiled = 2 * n * loads, naive = 2 * n * kDone, max = 2 * n * N;
@@ -741,8 +741,8 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time.',
     shared: 'One As and one Bs per block, in shared memory: 4 × 4 numbers each, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[4][4];</code>',
     tid: "This thread's place in its block.",
-    row: 'Same mapping as Part 2: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
-    col: 'Same mapping as Part 2: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
+    row: 'Same mapping as Part 1: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
+    col: 'Same mapping as Part 1: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
     acc: 'The running sum lives in a register, private to the thread. C is only written at the end.',
     tile: 'Walk along k one tile at a time: 4 columns of A and 4 rows of B per tile. N = 8 makes 2 tiles.',
     ldA: 'Each thread copies one number of A. Together the 16 threads copy the whole 4 × 4 tile, and each warp copies one row of it: 4 neighbors, one coalesced load.',
