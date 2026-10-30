@@ -1,7 +1,7 @@
 # CUTLASS, step by step
 
 Self-contained interactive HTML pages (no build step) teaching GPU matrix multiply.
-Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-v2.html`) → Part 2 (`-coalescing`) → Part 3 (`-cache-blocking`), linked by each page's pager.
+Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-v2.html`) → Part 2 (`-coalescing`) → Part 3 (`-shared-memory-tiling`), linked by each page's pager.
 
 ## Decisions
 
@@ -11,3 +11,4 @@ Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-v2.html`) →
 - **Controls never replay by accident**: stepping past the first or last step does nothing.
 - **Small model, real reference.** Pictures use a shrunk GPU (8 × 8 matrices, 4-thread warps); the intro lists the differences from a Tesla T4. Cite and link NVIDIA's official docs (the current CUDA Programming Guide) for facts.
 - **One look across pages**: shared CSS tokens, fonts and light/dark themes; A is blue, B orange, C green everywhere.
+- **Commit after every change.** Finish each change with a git commit; don't leave edits uncommitted.

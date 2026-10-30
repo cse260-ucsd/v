@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Cache Blocking</title>
+<title>Shared Memory Tiling</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
@@ -127,7 +127,7 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
 
 /* step timeline: the loop's shape at a glance */
 .tl-bar { padding: 10px 16px 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.timeline { display: flex; align-items: flex-start; gap: 8px; width: max-content; }
+.timeline { display: flex; align-items: flex-start; gap: 8px; width: max-content; margin: 0 auto; }
 .tl-tile { display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
 .tl-row { display: flex; align-items: center; gap: 3px; }
 .tl-cap {
@@ -273,10 +273,10 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   <header class="prose">
     <div class="eyebrow">CUTLASS, step by step · Part 3</div>
-    <h1>Cache blocking</h1>
+    <h1>Shared memory tiling</h1>
     <p class="lede">
-      <span class="term" data-tip="cache">Cache blocking</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles small enough for
-      <span class="term" data-tip="smem">shared memory</span>. Each block copies a tile from global memory once, and all its threads read it from there.
+      <span class="term" data-tip="smem">Shared memory</span> <span class="term" data-tip="cache">tiling</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles small enough
+      to fit in shared memory. Each block copies a tile from global memory once, and all its threads read it from there.
     </p>
   </header>
 
@@ -748,7 +748,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    cache: 'On a CPU, cache blocking means working on a piece of the data small enough to stay in the cache. A GPU has caches too, but they are small and shared by thousands of threads, so the kernel manages its own: shared memory.',
+    cache: 'On a CPU, the same idea is called cache blocking: working on a piece of the data small enough to stay in the cache. A GPU has caches too, but they are small and shared by thousands of threads, so the kernel manages its own: shared memory.',
     smem: 'A small, fast memory on the chip. Each block gets its own (here: As and Bs), and all its threads can read and write it. Reaching it takes tens of cycles, against hundreds for global memory.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads. The other 3 blocks do the same at the same time, each with its own As and Bs.',
