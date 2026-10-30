@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CUTLASS, Step by Step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
+<style>
+/* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
+   toolbar → one-line narration → picture | code. A, B and C keep one color each everywhere. */
+:root {
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --sunken: #eef0f4;
+  --ink: #141821;
+  --muted: #586071;
+  --line: #d6dae2;
+  --line-strong: #8d95a5;
+
+  --a: #0f6fc0;  --a-ink: #0b5ea6;  --on-a: #ffffff;
+  --b: #d0640f;  --b-ink: #a24a06;  --on-b: #ffffff;
+  --c: #0d8a62;  --c-ink: #07704e;
+
+  --p0: 6%; --p1: 15%; --p2: 32%;
+  --a-0: color-mix(in srgb, var(--a) var(--p0), var(--surface));
+  --a-1: color-mix(in srgb, var(--a) var(--p1), var(--surface));
+  --a-2: color-mix(in srgb, var(--a) var(--p2), var(--surface));
+  --b-0: color-mix(in srgb, var(--b) var(--p0), var(--surface));
+  --b-1: color-mix(in srgb, var(--b) var(--p1), var(--surface));
+  --b-2: color-mix(in srgb, var(--b) var(--p2), var(--surface));
+  --c-1: color-mix(in srgb, var(--c) var(--p1), var(--surface));
+  --c-2: color-mix(in srgb, var(--c) var(--p2), var(--surface));
+  --hl: color-mix(in srgb, var(--ink) 9%, transparent);
+
+  --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+    --line: #2b313c; --line-strong: #5d6676;
+    --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
+    --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
+    --c: #33bb8b; --c-ink: #6ad6ad;
+    --p0: 9%; --p1: 20%; --p2: 40%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
+  --line: #2b313c; --line-strong: #5d6676;
+  --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
+  --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
+  --c: #33bb8b; --c-ink: #6ad6ad;
+  --p0: 9%; --p1: 20%; --p2: 40%;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--font-body); }
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.prose { max-width: 68ch; }
+.prose p { margin: 0 0 1em; }
+
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+h2 { font-size: 1.65rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 0.6em; }
+.eyebrow {
+  font: 700 0.78rem var(--font-mono);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  margin-bottom: 14px;
+}
+.lede { font-size: 1.18rem; line-height: 1.55; margin-top: 18px; }
+section { margin-top: 56px; }
+
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunken); border-radius: 4px; padding: 0.08em 0.32em; }
+.vA { color: var(--a-ink); font-weight: 700; }
+.vB { color: var(--b-ink); font-weight: 700; }
+.vC { color: var(--c-ink); font-weight: 700; }
+
+/* figure frame */
+.fig { margin: 28px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.fig-top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.fig-title { font: 700 1.05rem var(--font-display); margin-right: auto; }
+.controls { display: flex; align-items: center; gap: 6px; }
+.btn {
+  font: 600 0.88rem var(--font-body); color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+}
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:hover:not(:disabled) { background: var(--sunken); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); min-width: 92px; justify-content: center; }
+.btn.primary:hover { background: var(--ink); opacity: 0.88; }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.count { font: 700 0.9rem var(--font-mono); min-width: 5.5em; text-align: right; font-variant-numeric: tabular-nums; }
+
+.narration {
+  padding: 12px 16px; min-height: 3.6em;
+  border-bottom: 1px solid var(--line); background: var(--sunken);
+  font-size: 1.02rem; line-height: 1.55;
+}
+
+.fig-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+.stage { padding: 16px; min-width: 0; }
+.side { padding: 16px; border-left: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 940px) {
+  .fig-body { grid-template-columns: minmax(0, 1fr); }
+  .side { border-left: 0; border-top: 1px solid var(--line); }
+}
+.pic-wrap { position: relative; }
+svg.pic { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; touch-action: manipulation; }
+.pic-note { margin: 10px 0 0; text-align: center; font-size: 0.86rem; color: var(--muted); }
+
+/* matrix cells */
+.cell rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; transition: fill 0.2s, stroke 0.2s; }
+.cell text {
+  font: 700 14px var(--font-mono); fill: var(--ink);
+  text-anchor: middle; dominant-baseline: central; pointer-events: none;
+}
+.cell text.coord { font-weight: 400; font-size: 11px; fill: var(--muted); }
+.cell.a rect { fill: var(--a-0); }
+.cell.b rect { fill: var(--b-0); }
+.cell.a.used rect { fill: var(--a-1); }
+.cell.b.used rect { fill: var(--b-1); }
+.cell.a.band rect { fill: var(--a-2); stroke: var(--a); }
+.cell.b.band rect { fill: var(--b-2); stroke: var(--b); }
+.cell.a.cur rect { fill: var(--a); stroke: var(--a); }
+.cell.b.cur rect { fill: var(--b); stroke: var(--b); }
+.cell.a.cur text { fill: var(--on-a); }
+.cell.b.cur text { fill: var(--on-b); }
+.cell.c.alt rect { fill: var(--sunken); }
+.cell.c.stored rect { fill: var(--c-1); stroke: var(--c); }
+.cell.c.hl-a rect { fill: var(--a-1); stroke: var(--a); }
+.cell.c.hl-b rect { fill: var(--b-1); stroke: var(--b); }
+.cell .flash { fill: var(--c); stroke: none; opacity: 0; }
+.cell.c.pulse .flash { animation: flash 0.7s ease-out; }
+@keyframes flash { from { opacity: 0.45; } to { opacity: 0; } }
+
+.block { fill: none; stroke: var(--line-strong); stroke-width: 1.5; pointer-events: none; }
+.block-hl { fill: none; stroke: var(--ink); stroke-width: 2.5; pointer-events: none; }
+.ring { fill: none; stroke: var(--ink); stroke-width: 3; pointer-events: none; }
+.klabel { font: 700 12px var(--font-mono); fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.mname { font: 800 24px var(--font-display); }
+.mname.a { fill: var(--a-ink); } .mname.b { fill: var(--b-ink); } .mname.c { fill: var(--c-ink); }
+.gidx { font: 700 12px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
+.gidx.on { fill: var(--ink); }
+.gtitle { font: 12px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
+.lg-k { font: 700 13px var(--font-mono); fill: var(--ink); }
+.lg-s { font: 12px var(--font-body); fill: var(--muted); }
+.glyph-block { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+.glyph-thread { fill: var(--muted); }
+.dots { pointer-events: none; }
+.dots .a { fill: var(--a); }
+.dots .b { fill: var(--b); }
+
+.tip {
+  position: absolute; z-index: 5; pointer-events: none;
+  background: var(--ink); color: var(--bg);
+  font-size: 0.82rem; line-height: 1.45; padding: 6px 9px; border-radius: 6px;
+  max-width: 300px; width: max-content;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+/* code */
+.panel-h { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.code {
+  font: 12.5px/1.7 var(--font-mono); background: var(--sunken); border-radius: 8px;
+  padding: 8px 0; overflow-x: auto;
+}
+.code .ln { display: block; white-space: pre; padding: 0 14px; transition: background 0.15s; }
+.code .ln.on { background: var(--hl); box-shadow: inset 3px 0 0 var(--ink); }
+.code .ln.near { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.code .kw { font-weight: 700; }
+.code .num { color: var(--muted); }
+.code .cm { color: var(--muted); font-style: italic; }
+.pc-note { margin: 10px 0 0; font-size: 0.9rem; color: var(--muted); }
+.pager { margin-top: 48px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
+.pager a { color: var(--a-ink); text-decoration: none; }
+.pager a:hover { text-decoration: underline; }
+.pc-note b { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="prose">
+    <div class="eyebrow">CUTLASS, step by step · Part 1</div>
+    <h1>The naive kernel</h1>
+    <p class="lede">
+      Each element of <span class="vC">C</span> is a row of <span class="vA">A</span> times a column of <span class="vB">B</span>.
+      The simplest CUDA kernel gives every element of C its own thread and runs all of those threads at the same time.
+    </p>
+  </header>
+
+  <div class="fig" id="fig">
+    <div class="fig-top">
+      <div class="fig-title">64 threads, all running at once</div>
+      <div class="controls">
+        <button class="btn icon" data-act="restart" aria-label="Restart"><svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 7.3l1.4-.5A4 4 0 1 0 5 5.2L6.8 7H2V2.2l1.9 1.9A5.5 5.5 0 0 1 8 2.5z"/></svg></button>
+        <button class="btn icon" data-act="back" aria-label="Previous step"><svg viewBox="0 0 16 16"><path d="M10.5 2.5 5 8l5.5 5.5 1-1L7 8l4.5-4.5z"/></svg></button>
+        <button class="btn primary" data-act="play"></button>
+        <button class="btn icon" data-act="next" aria-label="Next step"><svg viewBox="0 0 16 16"><path d="M5.5 2.5 11 8l-5.5 5.5-1-1L9 8 4.5 3.5z"/></svg></button>
+        <span class="count" data-role="count"></span>
+      </div>
+    </div>
+    <div class="narration" id="narr" aria-live="polite"></div>
+    <div class="fig-body">
+      <div class="stage">
+        <div class="pic-wrap">
+          <svg class="pic" id="pic" role="img" aria-label="Matrices A, B and C. C is covered by a 4 by 4 grid of blocks of 2 by 2 threads, one thread per cell."></svg>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+        <p class="pic-note">Hover a thread in C to see its block and what it reads. Hover a value in A or B to see who loads it.</p>
+      </div>
+      <div class="side">
+        <div>
+          <div class="panel-h">Launch · runs on the CPU</div>
+          <div class="code" id="launch">
+            <span class="ln" data-id="launch">dim3 block(<span class="num">2</span>, <span class="num">2</span>);          <span class="cm">// blockDim: 2 × 2 threads</span></span>
+            <span class="ln" data-id="launch">dim3 grid(N / <span class="num">2</span>, N / <span class="num">2</span>);   <span class="cm">// gridDim:  4 × 4 blocks</span></span>
+            <span class="ln" data-id="launch">matmul&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</span>
+          </div>
+        </div>
+        <div>
+          <div class="panel-h">Kernel · every thread runs this</div>
+          <div class="code" id="code">
+            <span class="ln"><span class="kw">__global__ void</span> matmul(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>,</span>
+            <span class="ln">                       <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)</span>
+            <span class="ln">{</span>
+            <span class="ln" data-id="row">    <span class="kw">int</span> row = blockIdx.x * blockDim.x + threadIdx.x;</span>
+            <span class="ln" data-id="col">    <span class="kw">int</span> col = blockIdx.y * blockDim.y + threadIdx.y;</span>
+            <span class="ln"> </span>
+            <span class="ln" data-id="acc0">    <span class="kw">float</span> acc = <span class="num">0.0f</span>;</span>
+            <span class="ln" data-id="for">    <span class="kw">for</span> (<span class="kw">int</span> k = <span class="num">0</span>; k &lt; N; k++)</span>
+            <span class="ln" data-id="fma">        acc += <span class="vA">A</span>[row * N + k] * <span class="vB">B</span>[k * N + col];</span>
+            <span class="ln" data-id="store">    <span class="vC">C</span>[row * N + col] = acc;</span>
+            <span class="ln">}</span>
+          </div>
+          <p class="pc-note">All 64 threads are on the <b>highlighted line</b> at the same moment. They differ only in <code>row</code> and <code>col</code>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="prose">
+      <h2>Why it's slow</h2>
+      <p>
+        Hover any value in <span class="vA">A</span>: all 8 threads in that row load it, each one separately.
+        Every number in A and B gets fetched 8 times, so the threads make 1,024 loads to read just 128 numbers.
+      </p>
+      <p>
+        On a GPU, reading memory is much slower than doing arithmetic, so these threads spend most of their time waiting for data.
+        A later part fixes that with <b>tiling</b>: a block of threads loads its piece of A and B once into fast on-chip memory and shares it.
+        First, Part 2 looks at <i>how</i> each warp of threads reads memory.
+      </p>
+    </div>
+    <nav class="pager">
+      <span></span>
+      <a href="cutlass-visualization-v2-coalescing.html">Part 2: Coalesced loads →</a>
+    </nav>
+  </section>
+
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const N = 8, BD = 2, NB = N / BD;          // N×N matrices, BD×BD threads per block, NB×NB blocks
+  const THREADS = N * N;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let seed = 2600;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const A = Array.from({ length: N }, () => Array.from({ length: N }, () => 1 + Math.floor(rnd() * 3)));
+  const B = Array.from({ length: N }, () => Array.from({ length: N }, () => 1 + Math.floor(rnd() * 3)));
+  const partial = (r, c, kEnd) => { let s = 0; for (let k = 0; k < kEnd; k++) s += A[r][k] * B[k][c]; return s; };
+
+  // ---------- picture: A left, B on top, C bottom right ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const $ = (s) => document.querySelector(s);
+  const toggle = (node, name, on) => node.classList.toggle(name, !!on);
+
+  const G = { cell: 38, gap: 26, pad: 4 };
+  G.xA = G.pad; G.yB = G.pad;
+  G.xC = G.xA + N * G.cell + G.gap;
+  G.yC = G.yB + N * G.cell + G.gap;
+  G.xEnd = G.xC + N * G.cell;
+  G.yEnd = G.yC + N * G.cell;
+  G.w = G.xEnd + 52;
+  G.h = G.yEnd + 46;
+  const mid = (i) => i * G.cell + G.cell / 2;
+  const span = BD * G.cell;
+
+  const svg = $('#pic');
+  svg.setAttribute('viewBox', `0 0 ${G.w} ${G.h}`);
+  const cells = el('g', {}, svg);
+  function cell(kind, x, y, i, j, label) {
+    const g = el('g', { class: `cell ${kind}`, transform: `translate(${x} ${y})` }, cells);
+    el('rect', { x: 1.5, y: 1.5, width: G.cell - 3, height: G.cell - 3, rx: 4 }, g);
+    if (kind === 'c') el('rect', { class: 'flash', x: 1.5, y: 1.5, width: G.cell - 3, height: G.cell - 3, rx: 4 }, g);
+    el('text', { x: G.cell / 2, y: G.cell / 2 + 0.5 }, g).textContent = label;
+    g.dataset.kind = kind; g.dataset.i = i; g.dataset.j = j;
+    return g;
+  }
+  const PA = A.map((row, i) => row.map((v, k) => cell('a', G.xA + k * G.cell, G.yC + i * G.cell, i, k, v)));
+  const PB = B.map((row, k) => row.map((v, j) => cell('b', G.xC + j * G.cell, G.yB + k * G.cell, k, j, v)));
+  const PC = A.map((_, r) => A.map((__, c) => {
+    const g = cell('c', G.xC + c * G.cell, G.yC + r * G.cell, r, c, '');
+    toggle(g, 'alt', (Math.floor(r / BD) + Math.floor(c / BD)) % 2);   // checkerboard of blocks
+    return g;
+  }));
+
+  for (let by = 0; by < NB; by++)
+    for (let bx = 0; bx < NB; bx++)
+      el('rect', { class: 'block', x: G.xC + bx * span, y: G.yC + by * span, width: span, height: span, rx: 3 }, svg);
+  const blockHL = el('rect', { class: 'block-hl', width: span, height: span, rx: 3, visibility: 'hidden' }, svg);
+  const ring = el('rect', { class: 'ring', width: G.cell - 1, height: G.cell - 1, rx: 5, visibility: 'hidden' }, svg);
+  const dots = el('g', { class: 'dots' }, svg);
+
+  const text = (x, y, s, cls, parent = svg) => { const t = el('text', { x, y, class: cls }, parent); t.textContent = s; return t; };
+  text(G.xEnd + 10, G.yB + 20, 'B', 'mname b');
+  text(G.xA, G.yEnd + 38, 'A', 'mname a');
+  text(G.xEnd + 10, G.yEnd + 38, 'C', 'mname c');
+  const kA = text(0, G.yC - G.gap / 2, '', 'klabel');
+  const kB = text(G.xC - G.gap / 2, 0, '', 'klabel');
+
+  // grid axes: row comes from the x index, so blockIdx.x runs down C's rows and blockIdx.y across its columns
+  const bxLab = [], byLab = [];
+  for (let b = 0; b < NB; b++) {
+    byLab.push(text(G.xC + b * span + span / 2, G.yEnd + 14, b, 'gidx'));
+    bxLab.push(text(G.xEnd + 14, G.yC + b * span + span / 2, b, 'gidx'));
+  }
+  text(G.xC + (N * G.cell) / 2, G.yEnd + 34, 'blockIdx.y →', 'gtitle');
+  const yTitle = text(G.xEnd + 36, G.yC + (N * G.cell) / 2, 'blockIdx.x →', 'gtitle');
+  yTitle.setAttribute('transform', `rotate(90 ${G.xEnd + 36} ${G.yC + (N * G.cell) / 2})`);
+
+  // launch legend in the empty top-left corner
+  const lg = el('g', { transform: `translate(${G.xA + 22} ${G.yB + 46})` }, svg);
+  for (let by = 0; by < NB; by++)
+    for (let bx = 0; bx < NB; bx++)
+      el('rect', { class: 'glyph-block', x: bx * 11, y: by * 11, width: 9, height: 9, rx: 1.5 }, lg);
+  text(60, 12, `gridDim = (${NB}, ${NB})`, 'lg-k', lg);
+  text(60, 32, `${NB} × ${NB} = ${NB * NB} blocks`, 'lg-s', lg);
+  el('rect', { class: 'glyph-block', x: 0, y: 78, width: 42, height: 42, rx: 4 }, lg);
+  for (let ty = 0; ty < BD; ty++)
+    for (let tx = 0; tx < BD; tx++)
+      el('circle', { class: 'glyph-thread', cx: 12 + tx * 18, cy: 90 + ty * 18, r: 4.5 }, lg);
+  text(60, 92, `blockDim = (${BD}, ${BD})`, 'lg-k', lg);
+  text(60, 112, `${BD} × ${BD} = ${BD * BD} threads per block`, 'lg-s', lg);
+  text(0, 168, `${NB * NB} blocks × ${BD * BD} threads`, 'lg-k', lg);
+  text(0, 188, `= ${THREADS} threads, one per cell of C`, 'lg-s', lg);
+
+  // ---------- one step for every thread ----------
+  // pos 0: launch · pos 1: work out row/col · pos 2..N+1: loop step k = pos-2 · pos N+2: store
+  const LAST = N + 2;
+  const codeLines = [...document.querySelectorAll('.code .ln')];
+  let token = 0;
+
+  function narrate(pos, k) {
+    if (pos === 0) return `The launch creates a <b>grid of ${NB} × ${NB} blocks</b>, and each block has <b>${BD} × ${BD} threads</b>. ` +
+      `That's ${THREADS} threads, one for every cell of <span class="vC">C</span>, and they all start at the same time.`;
+    if (pos === 1) return `Every thread works out which cell it owns: its block's position times the block size, plus its position inside the block. ` +
+      `Each cell now shows its thread's (row, col).`;
+    if (pos === LAST) return `Every thread writes its sum into <span class="vC">C</span> at the same moment. ` +
+      `The whole multiply took ${N} steps, because the ${THREADS} threads worked side by side.`;
+    if (k === 0) return `<b>k = 0</b>: every thread loads one value from <span class="vA">A</span> and one from <span class="vB">B</span>, ` +
+      `multiplies them, and adds the result to its own sum. All ${THREADS} do this at the same time.`;
+    return `<b>k = ${k}</b>: all ${THREADS} threads take the next step together, one column right in <span class="vA">A</span> ` +
+      `and one row down in <span class="vB">B</span>.`;
+  }
+
+  function paintC(pos, kDone, pulse) {
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const g = PC[r][c], t = g.querySelector('text');
+      t.textContent = pos === 0 ? '•' : pos === 1 ? `${r},${c}` : partial(r, c, kDone);
+      toggle(t, 'coord', pos <= 1);
+      toggle(g, 'stored', pos === LAST);
+      g.classList.remove('pulse');
+    }
+    if (pulse) {
+      svg.getBoundingClientRect();               // restart the flash on every cell in the same frame
+      for (const row of PC) for (const g of row) g.classList.add('pulse');
+    }
+  }
+
+  function flyDots(k, dur) {
+    const t0 = performance.now(), list = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const to = [G.xC + mid(c), G.yC + mid(r)];
+      list.push({ n: el('circle', { r: 4.5, class: 'a' }, dots), from: [G.xA + mid(k), G.yC + mid(r)], to });
+      list.push({ n: el('circle', { r: 4.5, class: 'b' }, dots), from: [G.xC + mid(c), G.yB + mid(k)], to });
+    }
+    (function frame(now) {
+      const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      for (const d of list) {
+        d.n.setAttribute('cx', d.from[0] + (d.to[0] - d.from[0]) * e);
+        d.n.setAttribute('cy', d.from[1] + (d.to[1] - d.from[1]) * e);
+      }
+      if (p < 1) requestAnimationFrame(frame); else list.forEach((d) => d.n.remove());
+    })(t0);
+  }
+
+  function render(pos, animate) {
+    const k = pos >= 2 && pos <= N + 1 ? pos - 2 : -1;
+    const kDone = pos === LAST ? N : k + 1;
+    const my = ++token;
+
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      toggle(PA[i][j], 'cur', j === k); toggle(PA[i][j], 'used', j < kDone && j !== k);
+      toggle(PB[i][j], 'cur', i === k); toggle(PB[i][j], 'used', i < kDone && i !== k);
+    }
+    kA.textContent = kB.textContent = k >= 0 ? `k=${k}` : '';
+    kA.setAttribute('x', G.xA + mid(Math.max(k, 0)));
+    kB.setAttribute('y', G.yB + mid(Math.max(k, 0)));
+
+    const on = pos === 0 ? ['launch'] : pos === 1 ? ['row', 'col'] : pos === LAST ? ['store'] : ['fma'];
+    codeLines.forEach((ln) => { toggle(ln, 'on', on.includes(ln.dataset.id)); toggle(ln, 'near', k >= 0 && ln.dataset.id === 'for'); });
+    $('#narr').innerHTML = narrate(pos, k);
+
+    if (animate && k >= 0 && !reduceMotion) {
+      flyDots(k, 520);
+      setTimeout(() => { if (my === token) paintC(pos, kDone, true); }, 520);
+    } else {
+      paintC(pos, kDone, !!animate);
+    }
+  }
+
+  // ---------- hover: a thread's block and what it reads, or who loads a value ----------
+  const tip = $('#tip');
+  let hovered = null;
+  function clearHover() {
+    svg.querySelectorAll('.band, .hl-a, .hl-b').forEach((n) => n.classList.remove('band', 'hl-a', 'hl-b'));
+    [...bxLab, ...byLab].forEach((t) => t.classList.remove('on'));
+    ring.setAttribute('visibility', 'hidden');
+    blockHL.setAttribute('visibility', 'hidden');
+    tip.hidden = true;
+  }
+  function hover(g) {
+    if (g === hovered) return;
+    hovered = g;
+    clearHover();
+    if (!g) return;
+    const i = +g.dataset.i, j = +g.dataset.j;
+    let html;
+    if (g.dataset.kind === 'c') {
+      const bx = Math.floor(i / BD), by = Math.floor(j / BD), tx = i % BD, ty = j % BD;
+      for (let k = 0; k < N; k++) { PA[i][k].classList.add('band'); PB[k][j].classList.add('band'); }
+      ring.setAttribute('x', G.xC + j * G.cell + 0.5);
+      ring.setAttribute('y', G.yC + i * G.cell + 0.5);
+      ring.setAttribute('visibility', 'visible');
+      blockHL.setAttribute('x', G.xC + by * span);
+      blockHL.setAttribute('y', G.yC + bx * span);
+      blockHL.setAttribute('visibility', 'visible');
+      bxLab[bx].classList.add('on'); byLab[by].classList.add('on');
+      html = `<b>Thread for C[${i}][${j}]</b><br>blockIdx = (${bx}, ${by}), threadIdx = (${tx}, ${ty})<br>` +
+        `row = ${bx}×${BD} + ${tx} = ${i}, col = ${by}×${BD} + ${ty} = ${j}`;
+    } else if (g.dataset.kind === 'a') {
+      for (let c = 0; c < N; c++) PC[i][c].classList.add('hl-a');
+      html = `<b>A[${i}][${j}] = ${A[i][j]}</b><br>loaded by all ${N} threads in row ${i}`;
+    } else {
+      for (let r = 0; r < N; r++) PC[r][j].classList.add('hl-b');
+      html = `<b>B[${i}][${j}] = ${B[i][j]}</b><br>loaded by all ${N} threads in column ${j}`;
+    }
+    const wrap = tip.parentElement.getBoundingClientRect(), rc = g.getBoundingClientRect();
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const half = tip.offsetWidth / 2;
+    tip.style.left = `${Math.max(half + 4, Math.min(wrap.width - half - 4, rc.left - wrap.left + rc.width / 2))}px`;
+    tip.style.top = `${rc.top - wrap.top}px`;
+  }
+  svg.addEventListener('pointermove', (e) => hover(e.target.closest('.cell')));
+  svg.addEventListener('pointerdown', (e) => hover(e.target.closest('.cell')));
+  svg.addEventListener('pointerleave', () => hover(null));
+
+  // ---------- controls ----------
+  const fig = $('#fig');
+  const playBtn = fig.querySelector('[data-act=play]');
+  const backBtn = fig.querySelector('[data-act=back]');
+  const nextBtn = fig.querySelector('[data-act=next]');
+  const count = fig.querySelector('[data-role=count]');
+  const ICON_PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
+  let pos = 0, timer = null;
+
+  function sync() {
+    playBtn.innerHTML = timer ? `${ICON_PAUSE}Pause` : `${ICON_PLAY}${pos === LAST ? 'Replay' : 'Play'}`;
+    backBtn.disabled = pos === 0;
+    nextBtn.disabled = pos === LAST;
+    count.textContent = pos === 0 ? 'launch' : pos === 1 ? 'row, col' : pos === LAST ? 'done' : `k = ${pos - 2}`;
+  }
+  function go(i, animate) { pos = Math.max(0, Math.min(LAST, i)); render(pos, animate); sync(); }
+  function stop() { clearInterval(timer); timer = null; sync(); }
+  function play() {
+    if (pos === LAST) go(0, false); else go(pos + 1, true);
+    timer = setInterval(() => (pos === LAST ? stop() : go(pos + 1, true)), 1500);
+    sync();
+  }
+  fig.querySelector('[data-act=restart]').addEventListener('click', () => { stop(); go(0, false); });
+  backBtn.addEventListener('click', () => { stop(); go(pos - 1, false); });
+  nextBtn.addEventListener('click', () => { stop(); go(pos + 1, true); });
+  playBtn.addEventListener('click', () => (timer ? stop() : play()));
+  fig.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { stop(); go(pos + 1, true); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { stop(); go(pos - 1, false); e.preventDefault(); }
+  });
+
+  go(0, false);
+})();
+</script>
+</body>
+</html>
