@@ -261,10 +261,10 @@ pre.code .cm { color: var(--muted); font-style: italic; }
         <thead><tr><th scope="col"></th><th scope="col">In this series</th><th scope="col">Tesla T4 (Turing, compute capability 7.5)</th></tr></thead>
         <tbody>
           <tr><th scope="row">Threads per warp</th><td>4</td><td>32</td></tr>
-          <tr><th scope="row">Matrix size</th><td>8 × 8 in Parts 1 and 3. 16 × 16 in Part 2, for 4 tiles along k, and in Part 4, so its bigger blocks still make a 2 × 2 grid.</td><td>Any size. GEMMs worth a GPU are hundreds to thousands per side.</td></tr>
+          <tr><th scope="row">Matrix size</th><td>8 × 8 in Part 1. 16 × 16 from Part 2 on, for 4 tiles along k, and so Part 4's bigger blocks still make a 2 × 2 grid.</td><td>Any size. GEMMs worth a GPU are hundreds to thousands per side.</td></tr>
           <tr><th scope="row">Threads per block</th><td>4 × 4 = 16. Part 3: 4 × 2 = 8.</td><td>Up to 1,024. 16 × 16 = 256 is a common choice.</td></tr>
           <tr><th scope="row">Warps in a block</th><td>One row of threads, because <code>blockDim.x</code> = 4</td><td>32 consecutive thread IDs, counted along <code>x</code> first. In a 16 × 16 block, each warp covers two rows.</td></tr>
-          <tr><th scope="row">Blocks</th><td>4, all running at once. Part 2: 16.</td><td>40 SMs, each holding up to 16 blocks and 1,024 threads at a time. Blocks beyond that wait for a free SM.</td></tr>
+          <tr><th scope="row">Blocks</th><td>16 in Parts 2 and 3, 4 in Parts 1 and 4. All run at once.</td><td>40 SMs, each holding up to 16 blocks and 1,024 threads at a time. Blocks beyond that wait for a free SM.</td></tr>
           <tr><th scope="row">Running "at the same time"</th><td>Every thread takes each step together</td><td>Each SM has 4 warp schedulers. Each one issues an instruction for one warp at a time, and switches to another warp while one waits for memory.</td></tr>
           <tr><th scope="row">Memory chunk (Part 1)</th><td>4 numbers</td><td>32-byte segments, 8 floats each. A warp reading 32 neighboring floats needs 4 segments: 128 bytes.</td></tr>
           <tr><th scope="row">Tile (Parts 2 to 4)</th><td>4 × 4. <span class="vA">As</span> and <span class="vB">Bs</span> take 128 bytes in all. Part 4: 8 × 4 and 4 × 8, 256 bytes.</td><td>Usually 16 × 16 or 32 × 32. Shared memory is up to 64 KB per SM, and a block gets 48 KB unless it asks for more.</td></tr>

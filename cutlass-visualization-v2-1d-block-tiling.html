@@ -120,15 +120,15 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
 
 /* step timeline: the loop's shape at a glance */
 .tl-bar { padding: 10px 16px 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.timeline { display: flex; align-items: flex-start; gap: 8px; width: max-content; margin: 0 auto; }
+.timeline { display: flex; align-items: flex-start; gap: 6px; width: max-content; margin: 0 auto; }
 .tl-tile { display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
-.tl-row { display: flex; align-items: center; gap: 3px; }
+.tl-row { display: flex; align-items: center; gap: 2px; }
 .tl-cap {
   font: 700 0.7rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
   text-align: center; border-top: 2px solid var(--line); padding-top: 2px; margin: 0 2px;
 }
 .ts {
-  height: 30px; min-width: 34px; padding: 0 8px; border-radius: 6px;
+  height: 30px; min-width: 32px; padding: 0 6px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--muted);
   font: 700 0.78rem var(--font-mono); cursor: pointer;
 }
@@ -303,7 +303,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <div class="narration" id="narr" aria-live="polite"></div>
     <div class="fig-body">
       <div class="stage">
-        <svg class="pic" id="pic" role="img" aria-label="Left: matrices A, B and C in global memory. Right: one block's shared tiles As and Bs around its 8 threads, each holding 2 sums of a column of C."></svg>
+        <svg class="pic" id="pic" role="img" aria-label="Left: 16 by 16 matrices A, B and C in global memory. Right: one block's shared tiles As and Bs around its 8 threads, each holding 2 sums of a column of C."></svg>
       </div>
       <div class="side">
         <div class="code" id="code" aria-label="Kernel pseudo-code">
@@ -343,7 +343,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 (() => {
   'use strict';
 
-  const N = 8, T = 4, NB = N / T, TILES = N / T;  // N×N matrices; T×T tiles, as in Part 2
+  const N = 16, T = 4, NB = N / T, TILES = N / T;  // N×N matrices; T×T tiles, as in Part 2
   const TM = 2, TY = T / TM;                       // each thread computes TM numbers in a column of C, so a block is T × TY threads
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // memory doesn't answer every request equally fast, so each copy lands at its own time
@@ -405,7 +405,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   const setBox = (node, b) => { for (const k in b) node.setAttribute(k, b[k]); };
 
   // both views are the same cross as Part 1: left operand left, top operand on top, result bottom right
-  const GL = { cell: 22, gap: 12 };
+  const GL = { cell: 11, gap: 12 };
   GL.m = N * GL.cell; GL.size = 2 * GL.m + GL.gap;
   GL.A = [0, GL.m + GL.gap]; GL.B = [GL.m + GL.gap, 0]; GL.C = [GL.m + GL.gap, GL.m + GL.gap];
   const SH = { cell: 44, gap: 12 };
@@ -461,8 +461,8 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   for (let t = 0; t < TILES; t++) {
     frA.push(el('rect', { class: 'tile-fr a', rx: 4 }, gAB));
     frB.push(el('rect', { class: 'tile-fr b', rx: 4 }, gAB));
-    tagA.push(text(vG, GL.A[0] + (t * T + T / 2) * GL.cell, GL.A[1] - 8, `tile ${t}`, 'tag'));
-    tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * T + T / 2) * GL.cell, `tile ${t}`, 'tag end'));
+    tagA.push(text(vG, GL.A[0] + (t * T + T / 2) * GL.cell, GL.A[1] - 8, `t=${t}`, 'tag'));
+    tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * T + T / 2) * GL.cell, `t=${t}`, 'tag end'));
   }
   const blkFr = el('rect', { class: 'blk-fr', rx: 4 }, vG);
   const markG = el('rect', { class: 'grp-mark', rx: 6 }, vG);
@@ -793,14 +793,14 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     tiling: 'Each thread computes a strip of C: here 2 numbers in one column, often 8 in real kernels. 1D because the strip is a line. 2D block tiling gives each thread a small square instead.',
     reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
-    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 8 threads, each with registers for acc[0], acc[1] and b. The other 3 blocks do the same at the same time.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 2 threads.',
+    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 8 threads, each with registers for acc[0], acc[1] and b. The other 15 blocks do the same at the same time.',
+    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 4 × 4 blocks of 4 × 2 threads.',
     shared: 'The same tiles as Part 2: 4 × 4 numbers each, seen by all 8 threads of the block.<br>CUDA: <code>__shared__ float As[4][4];</code>',
     tid: 'This thread\'s place in its block: tx from 0 to 3, ty from 0 to 1. The block is 4 × 2 threads.',
     r: 'The first row of C this block covers. Thread row ty computes rows 2ty and 2ty + 1 of the block.',
     col: 'Same as Parts 1 and 2: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
     acc: 'Two running sums, one for each number of C this thread computes. Both live in registers.<br>CUDA: <code>float acc[2] = {0.0f, 0.0f};</code>',
-    tile: 'Walk along k one tile at a time, as in Part 2: 4 columns of A and 4 rows of B per tile. N = 8 makes 2 tiles.',
+    tile: 'Walk along k one tile at a time, as in Part 2: 4 columns of A and 4 rows of B per tile. N = 16 makes 4 tiles.',
     mload: 'Half as many threads as Part 2 copy the same tiles, so each copies 2 numbers of each.',
     i: 'Rows 2ty and 2ty + 1: the thread copies the spots of As and Bs that line up with its own sums.',
     ldA: 'Each warp copies 2 whole rows of the A tile: 4 neighbors each, one coalesced load per row.',
@@ -813,7 +813,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     st0: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',
     st1: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',
-    meter: 'Every number the followed threads load from shared memory, against Part 2 computing the same numbers of C. Part 2 loads 2 per multiply-add; here 3 per 2. Whole kernel: 768 against 1,024. Reads from global memory match Part 2's kernel at N = 8: 256.',
+    meter: 'Every number the followed threads load from shared memory, against Part 2 computing the same numbers of C. Part 2 loads 2 per multiply-add; here 3 per 2. Whole kernel: 6,144 against 8,192. Reads from global memory stay as in Part 2: 2,048.',
     'sync-1': '<b>sync()</b><br>Wait until all 8 threads have copied their numbers.',
     'sync-2': '<b>sync()</b><br>Wait until all 8 threads are done with this tile before the next one overwrites it.',
   };
