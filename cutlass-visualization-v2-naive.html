@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
 <style>
 /* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
-   toolbar + follow and layout switches → step timeline → one-line caption → picture and chunk counts | pseudo-code.
+   toolbar + follow and layout switches → step timeline → one-line caption → picture | pseudo-code and chunk counts.
    The picture is the cross used on every page: A left, B on top, C bottom right, one thread per cell of C.
    Cells carry no numbers: the lesson is which memory chunks each warp touches, and details live in hover tips.
    A, B and C keep the same colors as Part 2. */
@@ -219,10 +219,11 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 .code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
 .code .live:empty { display: none; }
 
-/* memory chunks: two bars under the picture */
-.meter { cursor: help; width: min(100%, 560px); margin: 0 auto; }
-.m-row { display: grid; grid-template-columns: 12em minmax(0, 1fr) 3em; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--muted); }
-.m-row + .m-row { margin-top: 6px; }
+/* memory chunks: two bars under the pseudo-code, each label above its bar */
+.meter { cursor: help; margin-top: 18px; }
+.m-row { display: grid; grid-template-columns: minmax(0, 1fr) 3em; align-items: center; gap: 2px 10px; font-size: 0.9rem; color: var(--muted); }
+.m-row > span:first-child { grid-column: 1 / -1; }
+.m-row + .m-row { margin-top: 8px; }
 .m-row .num { font: 700 0.9rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .m-row.now { color: var(--ink); font-weight: 600; }
 .track { height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
@@ -251,7 +252,6 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
     <p class="lede">
       The simplest kernel gives every number of <span class="vC">C</span> its own thread, which reads a row of <span class="vA">A</span> and a column of <span class="vB">B</span> straight from global memory.
       Memory serves the threads of a <span class="term" data-tip="warp">warp</span> together, so their loads are <span class="term" data-tip="coalesced">coalesced</span> only if the warp reads neighbors.
-      Which index comes from <code>threadIdx.x</code> decides that.
     </p>
   </header>
 
@@ -284,11 +284,6 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
     <div class="fig-body">
       <div class="stage">
         <svg class="pic" id="pic" role="img" aria-label="Matrices A, B and C. Each cell of C is one thread; outlines in C group threads into warps of four. Dashed outlines in A and B are memory chunks."></svg>
-        <div class="meter" data-tip="meter">
-          <div class="panel-h" id="m-head"></div>
-          <div class="m-row" data-mode="row"><span>threadIdx.x → row</span><div class="track"><i></i></div><span class="num"></span></div>
-          <div class="m-row" data-mode="col"><span>threadIdx.x → column</span><div class="track"><i></i></div><span class="num"></span></div>
-        </div>
       </div>
       <div class="side">
         <div class="code" id="code" aria-label="Kernel pseudo-code">
@@ -299,6 +294,11 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
           <span class="ln" data-id="for">  <span class="kw">for</span> k <span class="kw">in</span> 0 .. N − 1:<span class="live" id="live-k"></span></span>
           <span class="ln" data-id="fma">    acc += <span class="vA">A</span>[row][k] · <span class="vB">B</span>[k][col]</span>
           <span class="ln" data-id="store">  <span class="vC">C</span>[row][col] = acc</span>
+        </div>
+        <div class="meter" data-tip="meter">
+          <div class="panel-h" id="m-head"></div>
+          <div class="m-row" data-mode="row"><span>threadIdx.x → row</span><div class="track"><i></i></div><span class="num"></span></div>
+          <div class="m-row" data-mode="col"><span>threadIdx.x → column</span><div class="track"><i></i></div><span class="num"></span></div>
         </div>
       </div>
     </div>
@@ -495,8 +495,7 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
     for (let tx = 0; tx < BD; tx++) el('circle', { class: 'glyph-thread', cx: 8 + tx * 10, cy: 7.5 + ty * 10, r: 2.6 }, lg);
   }
   text(lg, 66, 16, `blockDim = (${BD}, ${BD})`, 'lg-k');
-  text(lg, 66, 36, `${WPB} warps of ${WARP} threads,`, 'lg-s');
-  text(lg, 66, 52, 'consecutive threadIdx.x', 'lg-s');
+  text(lg, 66, 36, `${WPB} warps of ${WARP} threads`, 'lg-s');
   lg = legend(172, 'chunk');
   for (let j = 0; j < CHUNK; j++) el('rect', { class: 'glyph-cell', x: j * 11.5, y: 2, width: 10, height: 18, rx: 2 }, lg);
   el('rect', { class: 'chunk', x: -2, y: 0, width: 50, height: 22, rx: 5 }, lg);
