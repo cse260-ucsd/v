@@ -10,5 +10,5 @@ Reading order: `cutlass-visualization-v2-intro.html` → Part 1 (`-naive`) → P
 - **Interactions match the Follow level** (thread / warp / block): hover outlines and highlights cover the followed group's size, and hover must not flicker across gaps between cells.
 - **Controls never replay by accident**: stepping past the first or last step does nothing.
 - **Small model, real reference.** Pictures use a shrunk GPU (8 × 8 matrices, 4-thread warps); the intro lists the differences from a Tesla T4. Cite and link NVIDIA's official docs (the current CUDA Programming Guide) for facts.
-- **One look across pages**: shared CSS tokens, fonts and light/dark themes; A is blue, B orange, C green everywhere.
+- **One look across pages**: shared CSS tokens, fonts and light/dark themes; C is blue, A orange, B green everywhere (matching `gotoblas.html`).
 - **Commit after every change.** Finish each change with a git commit; don't leave edits uncommitted.

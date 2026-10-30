@@ -22,9 +22,9 @@
   --line: #d6dae2;
   --line-strong: #8d95a5;
 
-  --a: #0f6fc0;  --a-ink: #0b5ea6;  --on-a: #ffffff;
-  --b: #d0640f;  --b-ink: #a24a06;  --on-b: #ffffff;
-  --c: #0d8a62;  --c-ink: #07704e;
+  --a: #d0640f;  --a-ink: #a24a06;  --on-a: #ffffff;
+  --b: #0d8a62;  --b-ink: #07704e;  --on-b: #ffffff;
+  --c: #0f6fc0;  --c-ink: #0b5ea6;
 
   --p0: 6%; --p1: 15%; --p2: 32%;
   --a-0: color-mix(in srgb, var(--a) var(--p0), var(--surface));
@@ -47,9 +47,9 @@
   :root:not([data-theme="light"]) {
     --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
     --line: #2b313c; --line-strong: #5d6676;
-    --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
-    --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
-    --c: #33bb8b; --c-ink: #6ad6ad;
+    --a: #ee8a3c; --a-ink: #f6ad70; --on-a: #1d0e02;
+    --b: #33bb8b; --b-ink: #6ad6ad; --on-b: #03170f;
+    --c: #4b9fe3; --c-ink: #82c0f2;
     --p0: 9%; --p1: 20%; --p2: 40%;
     color-scheme: dark;
   }
@@ -57,9 +57,9 @@
 :root[data-theme="dark"] {
   --bg: #0e1116; --surface: #161a21; --sunken: #1c2129; --ink: #e5e8ee; --muted: #9aa2b2;
   --line: #2b313c; --line-strong: #5d6676;
-  --a: #4b9fe3; --a-ink: #82c0f2; --on-a: #07121e;
-  --b: #ee8a3c; --b-ink: #f6ad70; --on-b: #1d0e02;
-  --c: #33bb8b; --c-ink: #6ad6ad;
+  --a: #ee8a3c; --a-ink: #f6ad70; --on-a: #1d0e02;
+  --b: #33bb8b; --b-ink: #6ad6ad; --on-b: #03170f;
+  --c: #4b9fe3; --c-ink: #82c0f2;
   --p0: 9%; --p1: 20%; --p2: 40%;
   color-scheme: dark;
 }
@@ -76,7 +76,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(-
 }
 .prose { max-width: 68ch; }
 .prose p { margin: 0 0 1em; }
-a { color: var(--a-ink); }
+a { color: var(--c-ink); }
 
 h1 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
 h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
@@ -107,7 +107,7 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
 .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); min-width: 92px; justify-content: center; }
 .btn.primary:hover { background: var(--ink); opacity: 0.88; }
 .btn.icon { width: 34px; padding: 0; justify-content: center; }
-.btn:focus-visible, .seg button:focus-visible, .ts:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.btn:focus-visible, .seg button:focus-visible, .ts:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
 
 .switch { display: flex; align-items: center; gap: 10px; }
 .switch .lbl { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
