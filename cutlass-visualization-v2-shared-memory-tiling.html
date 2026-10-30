@@ -270,15 +270,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .notes > p { max-width: 68ch; margin: 0 0 1em; }
 .notes ol { margin: 0; padding-left: 1.6em; }
 .notes li { max-width: 68ch; margin-bottom: 0.8em; padding-left: 0.2em; }
-.notes li.wide { max-width: 84ch; }
-.notes li p { max-width: 68ch; margin: 0; }
 .notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
-pre.cuda {
-  font: 12.5px/1.7 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  padding: 14px 16px; margin: 10px 0 0; overflow-x: auto;
-}
-pre.cuda .kw { font-weight: 700; }
-pre.cuda .cm { color: var(--muted); font-style: italic; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -360,34 +352,6 @@ pre.cuda .cm { color: var(--muted); font-style: italic; }
       <li><b>Overlapping copies with math.</b> Here every thread copies, waits, computes and waits again. CUTLASS keeps <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">two tiles</a> of each matrix in shared memory: threads compute on one while the next is copied into the other, so the trip to global memory overlaps the math.</li>
       <li><b>Banks.</b> Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, with successive 4-byte words in successive banks. When threads of a warp read different words in the same bank, the reads take turns. Here each warp reads one number of <span class="vA">As</span>, which shared memory broadcasts to all of them, and neighboring numbers of <span class="vB">Bs</span>, each in its own bank, so no read waits. That stays true with 32-thread warps and 16 × 16 or 32 × 32 tiles.</li>
       <li><b>Sizes that don't divide.</b> Real kernels handle an N that isn't a multiple of the tile: threads whose number falls outside the matrix copy a 0 into <span class="vA">As</span> or <span class="vB">Bs</span>, and skip the store.</li>
-      <li class="wide">
-        <p><b>CUDA C++.</b> <code>shared</code> is <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#shared-memory"><code>__shared__</code></a> and <code>sync()</code> is <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#thread-block-synchronization-functions"><code>__syncthreads()</code></a>. At the picture's sizes:</p>
-<pre class="cuda"><span class="kw">constexpr int</span> TILE = 4;
-
-<span class="kw">__global__ void</span> matmul_tiled(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
-{
-    <span class="kw">__shared__ float</span> <span class="vA">As</span>[TILE][TILE], <span class="vB">Bs</span>[TILE][TILE];
-    <span class="kw">int</span> tx = threadIdx.x, ty = threadIdx.y;
-    <span class="kw">int</span> row = blockIdx.y * TILE + ty;
-    <span class="kw">int</span> col = blockIdx.x * TILE + tx;
-
-    <span class="kw">float</span> acc = 0.0f;
-    <span class="kw">for</span> (<span class="kw">int</span> t = 0; t &lt; N / TILE; t++) {
-        <span class="vA">As</span>[ty][tx] = <span class="vA">A</span>[row * N + t * TILE + tx];
-        <span class="vB">Bs</span>[ty][tx] = <span class="vB">B</span>[(t * TILE + ty) * N + col];
-        __syncthreads();
-        <span class="kw">for</span> (<span class="kw">int</span> k = 0; k &lt; TILE; k++)
-            acc += <span class="vA">As</span>[ty][k] * <span class="vB">Bs</span>[k][tx];
-        __syncthreads();
-    }
-    <span class="vC">C</span>[row * N + col] = acc;
-}
-
-<span class="cm">// N must be a multiple of TILE</span>
-dim3 block(TILE, TILE);
-dim3 grid(N / TILE, N / TILE);
-matmul_tiled&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</pre>
-      </li>
     </ol>
   </section>
 

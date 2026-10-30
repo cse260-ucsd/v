@@ -267,15 +267,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .notes > p { max-width: 68ch; margin: 0 0 1em; }
 .notes ol { margin: 0; padding-left: 1.6em; }
 .notes li { max-width: 68ch; margin-bottom: 0.8em; padding-left: 0.2em; }
-.notes li.wide { max-width: 84ch; }
-.notes li p { max-width: 68ch; margin: 0; }
 .notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
-pre.cuda {
-  font: 12.5px/1.7 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  padding: 14px 16px; margin: 10px 0 0; overflow-x: auto;
-}
-pre.cuda .kw { font-weight: 700; }
-pre.cuda .cm { color: var(--muted); font-style: italic; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -358,41 +350,6 @@ pre.cuda .cm { color: var(--muted); font-style: italic; }
       <li><b>Longer strips.</b> Real kernels often give each thread 8 numbers of a column of <span class="vC">C</span> instead of 2. Each number read from <span class="vB">Bs</span> then feeds 8 multiply-adds: 9 reads of shared memory for 8 multiply-adds, against 16 in Part 2.</li>
       <li><b>Registers.</b> Every sum takes a register, and the threads on an SM (streaming multiprocessor) share its registers. A Tesla T4 SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#occupancy">65,536</a>: 64 per thread when all 1,024 threads it can hold are there. Threads that need more fit fewer per SM, which leaves <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps</a> to switch to while one waits for memory. Independent multiply-adds within each thread make up for some of that: the two here don't wait for each other.</li>
       <li><b>Arrays in registers.</b> <code>acc[0..1]</code> stays in registers only because every index into it is a constant. When the compiler can't tell that, the array goes to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#local-memory">local memory</a>, which sits in global memory and is just as slow. Real kernels loop over the strip with <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#pragma-unroll"><code>#pragma unroll</code></a>, which turns every index into a constant.</li>
-      <li class="wide">
-        <p><b>CUDA C++.</b> At the picture's sizes:</p>
-<pre class="cuda"><span class="kw">constexpr int</span> TILE = 4;
-
-<span class="kw">__global__ void</span> matmul_1d(<span class="kw">const float</span> *<span class="vA">A</span>, <span class="kw">const float</span> *<span class="vB">B</span>, <span class="kw">float</span> *<span class="vC">C</span>, <span class="kw">int</span> N)
-{
-    <span class="kw">__shared__ float</span> <span class="vA">As</span>[TILE][TILE], <span class="vB">Bs</span>[TILE][TILE];
-    <span class="kw">int</span> tx = threadIdx.x, ty = threadIdx.y;
-    <span class="kw">int</span> r = blockIdx.y * TILE;
-    <span class="kw">int</span> col = blockIdx.x * TILE + tx;
-
-    <span class="kw">float</span> acc[2] = {0.0f, 0.0f};   <span class="cm">// constant indices only, so it stays in registers</span>
-    <span class="kw">for</span> (<span class="kw">int</span> t = 0; t &lt; N / TILE; t++) {
-        <span class="kw">for</span> (<span class="kw">int</span> m = 0; m &lt; 2; m++) {
-            <span class="kw">int</span> i = 2 * ty + m;
-            <span class="vA">As</span>[i][tx] = <span class="vA">A</span>[(r + i) * N + t * TILE + tx];
-            <span class="vB">Bs</span>[i][tx] = <span class="vB">B</span>[(t * TILE + i) * N + col];
-        }
-        __syncthreads();
-        <span class="kw">for</span> (<span class="kw">int</span> k = 0; k &lt; TILE; k++) {
-            <span class="kw">float</span> <span class="vB">b</span> = <span class="vB">Bs</span>[k][tx];
-            acc[0] += <span class="vA">As</span>[2 * ty][k] * <span class="vB">b</span>;
-            acc[1] += <span class="vA">As</span>[2 * ty + 1][k] * <span class="vB">b</span>;
-        }
-        __syncthreads();
-    }
-    <span class="vC">C</span>[(r + 2 * ty) * N + col] = acc[0];
-    <span class="vC">C</span>[(r + 2 * ty + 1) * N + col] = acc[1];
-}
-
-<span class="cm">// N must be a multiple of TILE</span>
-dim3 block(TILE, TILE / 2);
-dim3 grid(N / TILE, N / TILE);
-matmul_1d&lt;&lt;&lt;grid, block&gt;&gt;&gt;(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N);</pre>
-      </li>
     </ol>
   </section>
 
