@@ -12,6 +12,7 @@ Self-contained interactive HTML pages (no build step) teaching matrix multiply f
 - `cutlass-visualization-v2-shared-memory-tiling.html` (Part 2)
 - `cutlass-visualization-v2-1d-block-tiling.html` (Part 3)
 - `cutlass-visualization-v2-2d-block-tiling.html` (Part 4)
+- `cutlass-visualization-v2-warp-tiling.html` (Part 5, the last)
 
 ## Decisions
 
