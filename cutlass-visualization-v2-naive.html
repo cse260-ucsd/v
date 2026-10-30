@@ -799,8 +799,10 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
     anchor = gidOf(+g.dataset.i, +g.dataset.j);
     go(pos, false);
   });
-  fig.addEventListener('keydown', (e) => {
-    if (e.target.closest('.seg')) return;
+  // arrows step from anywhere on the page, except while typing or with modifiers held
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.target.closest('input, textarea, select, [contenteditable]')) return;
     if (e.key === 'ArrowRight') { stop(); if (pos < LAST) go(pos + 1, true); e.preventDefault(); }
     if (e.key === 'ArrowLeft') { stop(); go(pos - 1, false); e.preventDefault(); }
   });
