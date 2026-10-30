@@ -246,11 +246,19 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
 .code .live:empty { display: none; }
 
-/* shared memory reads: two bars under the pseudo-code, each label above its bar */
-.meter { cursor: help; margin-top: 18px; }
-.m-row { display: grid; grid-template-columns: minmax(0, 1fr) 3em; align-items: center; gap: 2px 10px; font-size: 0.9rem; color: var(--muted); }
-.m-row > span:first-child { grid-column: 1 / -1; }
+/* shared memory reads: two bars in a strip under the picture and pseudo-code, each label beside its bar */
+.meters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px 40px;
+  padding: 14px 16px 16px; border-top: 1px solid var(--line);
+}
+.meter { cursor: help; display: grid; grid-template-columns: max-content minmax(0, 1fr) 3em; column-gap: 12px; align-content: start; }
+.meter .panel-h { grid-column: 1 / -1; }
+.m-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; row-gap: 2px; font-size: 0.9rem; color: var(--muted); }
 .m-row + .m-row { margin-top: 8px; }
+@media (max-width: 600px) {
+  .meter { grid-template-columns: minmax(0, 1fr) 3em; }
+  .m-row > span:first-child { grid-column: 1 / -1; }
+}
 .m-row .num { font: 700 0.9rem var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .m-row.now { color: var(--ink); font-weight: 600; }
 .track { height: 10px; border-radius: 5px; background: var(--sunken); overflow: hidden; }
@@ -335,11 +343,13 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
           <span class="ln" data-id="st0">  <span class="vC">C</span>[r + 2ty][col] = acc[0]</span>
           <span class="ln" data-id="st1">  <span class="vC">C</span>[r + 2ty + 1][col] = acc[1]</span>
         </div>
-        <div class="meter" data-tip="meter">
-          <div class="panel-h" id="m-head"></div>
-          <div class="m-row now"><span>2 numbers of C per thread</span><div class="track"><i id="b-now"></i></div><span class="num" id="m-now"></span></div>
-          <div class="m-row"><span>1 per thread (Part 2)</span><div class="track"><i id="b-prev"></i></div><span class="num" id="m-prev"></span></div>
-        </div>
+      </div>
+    </div>
+    <div class="meters">
+      <div class="meter" data-tip="meter">
+        <div class="panel-h" id="m-head"></div>
+        <div class="m-row now"><span>2 numbers of C per thread</span><div class="track"><i id="b-now"></i></div><span class="num" id="m-now"></span></div>
+        <div class="m-row"><span>1 per thread (Part 2)</span><div class="track"><i id="b-prev"></i></div><span class="num" id="m-prev"></span></div>
       </div>
     </div>
   </div>
