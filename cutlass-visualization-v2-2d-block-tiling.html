@@ -280,7 +280,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <p class="lede">
       <span class="term" data-tip="tiling">2D block tiling</span> gives each thread a 2 × 2 square of <span class="vC">C</span>.
       At every step it reads 2 numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span> into <span class="term" data-tip="reg">registers</span> and multiplies each <span class="vA">a</span> by each <span class="vB">b</span>, so every number it reads is used twice.
-      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, which halves its copies from global memory per number of <span class="vC">C</span>. The matrices grow to 16 × 16 to make room for 4 blocks.
+      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, which halves its copies from global memory per number of <span class="vC">C</span>. As in Part 2, the matrices are 16 × 16, which fits 4 such blocks.
     </p>
   </header>
 

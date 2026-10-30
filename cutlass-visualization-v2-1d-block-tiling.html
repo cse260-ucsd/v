@@ -813,7 +813,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     st0: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',
     st1: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',
-    meter: 'Every number the followed threads load from shared memory, against Part 2 computing the same numbers of C. Part 2 loads 2 per multiply-add; here 3 per 2. Whole kernel: 768 against 1,024. Reads from global memory stay as in Part 2: 256.',
+    meter: 'Every number the followed threads load from shared memory, against Part 2 computing the same numbers of C. Part 2 loads 2 per multiply-add; here 3 per 2. Whole kernel: 768 against 1,024. Reads from global memory match Part 2's kernel at N = 8: 256.',
     'sync-1': '<b>sync()</b><br>Wait until all 8 threads have copied their numbers.',
     'sync-2': '<b>sync()</b><br>Wait until all 8 threads are done with this tile before the next one overwrites it.',
   };

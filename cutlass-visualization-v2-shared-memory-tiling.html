@@ -10,7 +10,7 @@
 <style>
 /* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
    toolbar + follow switch → step timeline → one-line caption → picture | pseudo-code and read counts.
-   The picture pairs global memory (A, B, C) with one block on the chip (its shared tiles As, Bs around its threads).
+   The picture pairs global memory (16 × 16 A, B, C) with one block on the chip (its shared tiles As, Bs around its threads).
    Cells carry no numbers: the lesson is where data moves, and details live in hover tips.
    A, B and C keep the same colors as Part 1. */
 :root {
@@ -127,15 +127,15 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
 
 /* step timeline: the loop's shape at a glance */
 .tl-bar { padding: 10px 16px 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.timeline { display: flex; align-items: flex-start; gap: 8px; width: max-content; margin: 0 auto; }
+.timeline { display: flex; align-items: flex-start; gap: 6px; width: max-content; margin: 0 auto; }
 .tl-tile { display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
-.tl-row { display: flex; align-items: center; gap: 3px; }
+.tl-row { display: flex; align-items: center; gap: 2px; }
 .tl-cap {
   font: 700 0.7rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
   text-align: center; border-top: 2px solid var(--line); padding-top: 2px; margin: 0 2px;
 }
 .ts {
-  height: 30px; min-width: 34px; padding: 0 8px; border-radius: 6px;
+  height: 30px; min-width: 32px; padding: 0 6px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--muted);
   font: 700 0.78rem var(--font-mono); cursor: pointer;
 }
@@ -282,6 +282,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <p class="lede">
       <span class="term" data-tip="smem">Shared memory</span> <span class="term" data-tip="cache">tiling</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles small enough
       to fit in shared memory. Each block copies a tile from global memory once, and all its threads read it from there.
+      The matrices grow to 16 × 16 here, 4 tiles to a side.
     </p>
   </header>
 
@@ -306,7 +307,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <div class="narration" id="narr" aria-live="polite"></div>
     <div class="fig-body">
       <div class="stage">
-        <svg class="pic" id="pic" role="img" aria-label="Left: matrices A, B and C in global memory. Right: one block's shared tiles As and Bs around its 16 threads."></svg>
+        <svg class="pic" id="pic" role="img" aria-label="Left: 16 by 16 matrices A, B and C in global memory. Right: one block's shared tiles As and Bs around its 16 threads."></svg>
       </div>
       <div class="side">
         <div class="code" id="code" aria-label="Kernel pseudo-code">
@@ -341,7 +342,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 (() => {
   'use strict';
 
-  const N = 8, T = 4, NB = N / T, TILES = N / T;  // N×N matrices; T×T tiles, one thread per tile element
+  const N = 16, T = 4, NB = N / T, TILES = N / T;  // N×N matrices; T×T tiles, one thread per tile element
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // memory doesn't answer every request equally fast, so each thread's copy lands at its own time
   let seed = 2600;
@@ -400,7 +401,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   const setBox = (node, b) => { for (const k in b) node.setAttribute(k, b[k]); };
 
   // both views are the same cross as Part 1: left operand left, top operand on top, result bottom right
-  const GL = { cell: 22, gap: 12 };
+  const GL = { cell: 11, gap: 12 };
   GL.m = N * GL.cell; GL.size = 2 * GL.m + GL.gap;
   GL.A = [0, GL.m + GL.gap]; GL.B = [GL.m + GL.gap, 0]; GL.C = [GL.m + GL.gap, GL.m + GL.gap];
   const SH = { cell: 44, gap: 12 };
@@ -441,8 +442,8 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   for (let t = 0; t < TILES; t++) {
     frA.push(el('rect', { class: 'tile-fr a', rx: 4 }, gAB));
     frB.push(el('rect', { class: 'tile-fr b', rx: 4 }, gAB));
-    tagA.push(text(vG, GL.A[0] + (t * T + T / 2) * GL.cell, GL.A[1] - 8, `tile ${t}`, 'tag'));
-    tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * T + T / 2) * GL.cell, `tile ${t}`, 'tag end'));
+    tagA.push(text(vG, GL.A[0] + (t * T + T / 2) * GL.cell, GL.A[1] - 8, `t=${t}`, 'tag'));
+    tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * T + T / 2) * GL.cell, `t=${t}`, 'tag end'));
   }
   const blkFr = el('rect', { class: 'blk-fr', rx: 4 }, vG);
   const markG = el('rect', { class: 'grp-mark', rx: 6 }, vG);
@@ -739,14 +740,14 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     cache: 'On a CPU, the same idea is called cache blocking: working on a piece of the data small enough to stay in the cache. A GPU has caches too, but they are small and shared by thousands of threads, so the kernel manages its own: shared memory.',
     smem: 'A small, fast memory on the chip. Each block gets its own (here: As and Bs), and all its threads can read and write it. Reaching it takes tens of cycles, against hundreds for global memory.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
-    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads. The other 3 blocks do the same at the same time, each with its own As and Bs.',
+    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads. The other 15 blocks do the same at the same time, each with its own As and Bs.',
     head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time.',
     shared: 'One As and one Bs per block, in shared memory: 4 × 4 numbers each, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[4][4];</code>',
     tid: "This thread's place in its block.",
     row: 'Same mapping as Part 1: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
     col: 'Same mapping as Part 1: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',
     acc: 'The running sum lives in a register, private to the thread. C is only written at the end.',
-    tile: 'Walk along k one tile at a time: 4 columns of A and 4 rows of B per tile. N = 8 makes 2 tiles.',
+    tile: 'Walk along k one tile at a time: 4 columns of A and 4 rows of B per tile. N = 16 makes 4 tiles.',
     ldA: 'Each thread copies one number of A. Together the 16 threads copy the whole 4 × 4 tile, and each warp copies one row of it: 4 neighbors, one coalesced load.',
     ldB: 'Each thread copies one number of B, the same way.',
     sync1: 'A barrier: no thread goes on until all 16 have reached it. Here it makes sure the tiles are complete, because each thread reads numbers its neighbors copied.<br>CUDA: <code>__syncthreads()</code>',
@@ -754,7 +755,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     fma: 'As[ty][k] is read by the 4 threads in row ty, Bs[k][tx] by the 4 threads in column tx. Each copied number gets used 4 times.',
     sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     store: 'Each thread writes its finished sum to C, once.',
-    meter: 'Every number a thread asks global memory for. Without tiling, each thread reads 2 per k: 16 in all. With 4 × 4 tiles it reads 2 per tile: 4 in all. Whole kernel: 1,024 against 256.',
+    meter: 'Every number a thread asks global memory for. Without tiling, each thread reads 2 per k: 32 in all. With 4 × 4 tiles it reads 2 per tile: 8 in all. Whole kernel: 8,192 against 2,048.',
     'sync-1': '<b>sync()</b><br>Wait until all 16 threads have copied their numbers.',
     'sync-2': '<b>sync()</b><br>Wait until all 16 threads are done with this tile before the next one overwrites it.',
   };
