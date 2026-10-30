@@ -3,17 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Warp Tiling</title>
+<title>2D Block Tiling</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
 <style>
 /* Layout: one left-aligned reading column (~68ch); the figure widens to 1120px as
-   toolbar + follow switch → step timeline → one-line caption → picture | pseudo-code → read count.
-   The picture is Part 4's: global memory (16 × 16 A, B, C) beside one block on the chip (its 8 × 4 As and 4 × 8 Bs around its 8 × 8 sums).
-   The sums are now drawn one cell each, labeled with the thread that owns it, and the block's 4 warp squares are outlined:
-   a thread's 4 sums are spread over its warp's square, one per 2 × 2 sub-tile.
-   A, B and C keep the same colors as Parts 1 to 4. */
+   toolbar + follow switch → step timeline → one-line caption → picture | pseudo-code and read counts.
+   The picture is Part 3's, grown: global memory (16 × 16 A, B, C) beside one block on the chip (its 8 × 4 As and 4 × 8 Bs around its threads).
+   Each thread is now a 2 × 2 box: one slot per sum, an orange dot per a on the left edge, a green dot per b on the top edge.
+   A, B and C keep the same colors as Parts 1 to 3. */
 :root {
   --bg: #f3f4f7;
   --surface: #ffffff;
@@ -146,6 +145,7 @@ code { font-family: var(--font-mono); font-size: 0.88em; background: var(--sunke
   font-size: 1.02rem; line-height: 1.55;
 }
 .narration code { background: var(--surface); }
+.src-ref { border: 1.6px dashed var(--ink); border-radius: 6px; padding: 0 4px; white-space: nowrap; }
 
 .fig-body { display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: start; }
 .stage { padding: 16px 12px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
@@ -177,7 +177,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .cell.b.need .bg { fill: var(--b-2); }
 .cell.a.cur .bg { fill: var(--a); stroke: var(--a); }
 .cell.b.cur .bg { fill: var(--b); stroke: var(--b); }
-.cell.c, .cell.acc { cursor: pointer; }
+.cell.c, .cell.th { cursor: pointer; }
 .cell.c.alt .bg { fill: var(--sunken); }
 .cell.c.stored .bg { fill: var(--c-2); stroke: var(--c); }
 
@@ -189,26 +189,26 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .cell.bs.cur .bg { fill: var(--b); stroke: var(--b); }
 .cell.as.tgt .bg { stroke: var(--a-ink); stroke-width: 3; }
 .cell.bs.tgt .bg { stroke: var(--b-ink); stroke-width: 3; }
-.cell.acc .bg { fill: var(--surface); stroke: color-mix(in srgb, var(--c) 55%, var(--surface)); }
-.cell.acc .fill { fill: var(--c-1); pointer-events: none; transition: y 0.3s, height 0.3s; }
-.cell.acc.done .fill { fill: var(--c-2); }
-.cell.acc.cur .bg { stroke: var(--c); stroke-width: 2.5; }
-.cell.acc.wait .bg { stroke: var(--line-strong); stroke-dasharray: 4 3; }
-.cell.acc .pill { fill: var(--surface); stroke: var(--line); pointer-events: none; }
-.cell.acc.mine text { font-weight: 700; fill: var(--ink); }
-.cell.acc .reg { visibility: hidden; pointer-events: none; stroke: var(--surface); stroke-width: 1.5; }
-.cell.acc .reg.a { fill: var(--a); }
-.cell.acc .reg.b { fill: var(--b); }
-.cell.acc.regs .reg { visibility: visible; }
+.cell.th .bg { fill: var(--surface); stroke: color-mix(in srgb, var(--c) 55%, var(--surface)); }
+.cell.th .slot { fill: var(--surface); stroke: var(--line); pointer-events: none; }
+.cell.th .fill { fill: var(--c-1); pointer-events: none; transition: y 0.3s, height 0.3s; }
+.cell.th.done .fill { fill: var(--c-2); }
+.cell.th.wait .bg { stroke: var(--line-strong); stroke-dasharray: 4 3; }
+.cell.th .pill { fill: var(--surface); stroke: var(--line); pointer-events: none; }
+.cell.th.word text { font-weight: 700; fill: var(--ink); }
+.cell.th .reg { visibility: hidden; pointer-events: none; stroke: var(--surface); stroke-width: 1.5; }
+.cell.th .reg.a { fill: var(--a); }
+.cell.th .reg.b { fill: var(--b); }
+.cell.th.regs .reg { visibility: visible; }
 .cell.hl .bg { stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: none; }
 .cell.hl-src .bg { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 3 3; }
 
 .tile-fr { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 4 3; pointer-events: none; }
 .tile-fr.a.on { stroke: var(--a-ink); stroke-width: 3; stroke-dasharray: none; }
 .tile-fr.b.on { stroke: var(--b-ink); stroke-width: 3; stroke-dasharray: none; }
-.warp-fr { fill: none; stroke: var(--line-strong); stroke-width: 2; pointer-events: none; }
 .blk-fr, .grp-mark { fill: none; stroke: var(--ink); stroke-width: 2.5; pointer-events: none; }
 .grp-mark.block { stroke-width: 3; }
+.src-mark { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 3 3; pointer-events: none; }
 .tag { font: 600 11px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
 .tag.end { text-anchor: end; }
 .tag.on { fill: var(--ink); font-weight: 700; }
@@ -248,7 +248,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .code .live { margin-left: 10px; padding: 1px 6px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
 .code .live:empty { display: none; }
 
-/* read count: a strip under the picture and pseudo-code, each label beside its bar */
+/* read counts: two meters side by side in a strip under the picture and pseudo-code, each label beside its bar */
 .meters {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px 40px;
   padding: 14px 16px 16px; border-top: 1px solid var(--line);
@@ -288,15 +288,16 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 <main class="page">
 
   <nav class="pager">
-    <a href="cutlass-visualization-v2-2d-block-tiling.html">← Part 4: 2D block tiling</a>
+    <a href="cuda-1d-block-tiling.html">← Part 3: 1D block tiling</a>
+    <a href="cuda-warp-tiling.html">Part 5: Warp tiling →</a>
   </nav>
 
   <header class="prose">
-    <h1>Warp tiling</h1>
+    <h1>2D block tiling</h1>
     <p class="lede">
-      <span class="term" data-tip="warptile">Warp tiling</span> gives each warp of a block its own 4 × 4 square of <span class="vC">C</span>, where Part 4's warps each took a 2 × 8 strip.
-      Each thread keeps one sum in each 2 × 2 <span class="term" data-tip="subtile">sub-tile</span> of its warp's square, so the warp's 4 threads fill one sub-tile together, from 2 neighboring numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span>.
-      Threads read and compute as much as in Part 4, but at every step a warp needs 4 numbers of <span class="vA">As</span> and 4 of <span class="vB">Bs</span>, where Part 4's needed 2 and 8.
+      <span class="term" data-tip="tiling">2D block tiling</span> gives each thread a 2 × 2 square of <span class="vC">C</span>.
+      At every step it reads 2 numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span> into <span class="term" data-tip="reg">registers</span> and multiplies each <span class="vA">a</span> by each <span class="vB">b</span>, so every number it reads is used twice.
+      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, which halves its copies from global memory per number of <span class="vC">C</span>. As in Parts 2 and 3, the matrices are 16 × 16, which fits 4 such blocks.
     </p>
   </header>
 
@@ -321,42 +322,45 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <div class="narration" id="narr" aria-live="polite"></div>
     <div class="fig-body">
       <div class="stage">
-        <svg class="pic" id="pic" role="img" aria-label="Left: 16 by 16 matrices A, B and C in global memory. Right: one block's shared tiles As (8 by 4) and Bs (4 by 8) around its 8 by 8 sums of C, split into 4 warp squares of 4 by 4; each sum is labeled with the thread that computes it."></svg>
+        <svg class="pic" id="pic" role="img" aria-label="Left: 16 by 16 matrices A, B and C in global memory. Right: one block's shared tiles As (8 by 4) and Bs (4 by 8) around its 16 threads, each holding a 2 by 2 square of sums of C."></svg>
       </div>
       <div class="side">
         <div class="code" id="code" aria-label="Kernel pseudo-code">
-          <span class="ln" data-id="head"><span class="kw">kernel</span> matmul_warp(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N):</span>
+          <span class="ln" data-id="head"><span class="kw">kernel</span> matmul_2d(<span class="vA">A</span>, <span class="vB">B</span>, <span class="vC">C</span>, N):</span>
           <span class="ln" data-id="shared">  <span class="kw">shared</span> <span class="vA">As</span>[8][4], <span class="vB">Bs</span>[4][8]</span>
-          <span class="ln" data-id="tid">  tid = threadIdx.x</span>
-          <span class="ln" data-id="wl">  w, l = tid / 4, tid mod 4</span>
+          <span class="ln" data-id="tid">  tx, ty = threadIdx.x, threadIdx.y</span>
           <span class="ln" data-id="r">  r = blockIdx.y · 8</span>
           <span class="ln" data-id="c">  c = blockIdx.x · 8</span>
-          <span class="ln" data-id="wrc">  wr, wc = 4(w / 2), 4(w mod 2)</span>
-          <span class="ln" data-id="ij0">  i0, j0 = wr + l / 2, wc + l mod 2</span>
+          <span class="ln" data-id="rowcol">  row, col = r + 2ty, c + 2tx</span>
           <span class="ln" data-id="acc">  acc[0..1][0..1] = 0</span>
           <span class="ln" data-id="tile">  <span class="kw">for</span> t <span class="kw">in</span> 0 .. N/4 − 1:<span class="live" id="live-t"></span></span>
           <span class="ln" data-id="hload">    <span class="kw">for</span> h <span class="kw">in</span> 0 .. 1:</span>
-          <span class="ln" data-id="ij">      i, j = 4h + w, 4h + l</span>
-          <span class="ln" data-id="ldA">      <span class="vA">As</span>[i][l] = <span class="vA">A</span>[r + i][4t + l]</span>
-          <span class="ln" data-id="ldB">      <span class="vB">Bs</span>[w][j] = <span class="vB">B</span>[4t + w][c + j]</span>
+          <span class="ln" data-id="ij">      i, j = 4h + ty, 4h + tx</span>
+          <span class="ln" data-id="ldA">      <span class="vA">As</span>[i][tx] = <span class="vA">A</span>[r + i][4t + tx]</span>
+          <span class="ln" data-id="ldB">      <span class="vB">Bs</span>[ty][j] = <span class="vB">B</span>[4t + ty][c + j]</span>
           <span class="ln" data-id="sync1">    sync()</span>
           <span class="ln" data-id="kloop">    <span class="kw">for</span> k <span class="kw">in</span> 0 .. 3:<span class="live" id="live-k"></span></span>
-          <span class="ln" data-id="a">      <span class="vA">a</span>[0..1] = <span class="vA">As</span>[i0 + {0, 2}][k]</span>
-          <span class="ln" data-id="b">      <span class="vB">b</span>[0..1] = <span class="vB">Bs</span>[k][j0 + {0, 2}]</span>
+          <span class="ln" data-id="a">      <span class="vA">a</span>[0..1] = <span class="vA">As</span>[2ty + 0..1][k]</span>
+          <span class="ln" data-id="b">      <span class="vB">b</span>[0..1] = <span class="vB">Bs</span>[k][2tx + 0..1]</span>
           <span class="ln" data-id="mn">      <span class="kw">for</span> m, n <span class="kw">in</span> 0 .. 1:<span class="live" id="live-mn"></span></span>
           <span class="ln" data-id="fma">        acc[m][n] += <span class="vA">a</span>[m] · <span class="vB">b</span>[n]</span>
           <span class="ln" data-id="sync2">    sync()</span>
           <span class="ln" data-id="st">  <span class="kw">for</span> m, n <span class="kw">in</span> 0 .. 1:</span>
-          <span class="ln" data-id="stij">    i, j = i0 + 2m, j0 + 2n</span>
-          <span class="ln" data-id="st1">    <span class="vC">C</span>[r + i][c + j] = acc[m][n]</span>
+          <span class="ln" data-id="st1">    <span class="vC">C</span>[row + m][col + n] = acc[m][n]</span>
         </div>
       </div>
     </div>
     <div class="meters">
-      <div class="meter" data-tip="meter">
-        <div class="panel-h" id="m-head"></div>
-        <div class="m-row now"><span>4 × 4 square per warp</span><div class="track"><i id="b-now"></i></div><span class="num" id="m-now"></span></div>
-        <div class="m-row"><span>2 × 8 strip per warp (Part 4)</span><div class="track"><i id="b-prev"></i></div><span class="num" id="m-prev"></span></div>
+      <div class="meter" data-tip="meter-s">
+        <div class="panel-h" id="ms-head"></div>
+        <div class="m-row now"><span>2 × 2 numbers of C per thread</span><div class="track"><i id="bs-0"></i></div><span class="num" id="ms-0"></span></div>
+        <div class="m-row"><span>2 per thread (Part 3)</span><div class="track"><i id="bs-1"></i></div><span class="num" id="ms-1"></span></div>
+        <div class="m-row"><span>1 per thread (Part 2)</span><div class="track"><i id="bs-2"></i></div><span class="num" id="ms-2"></span></div>
+      </div>
+      <div class="meter" data-tip="meter-g">
+        <div class="panel-h" id="mg-head"></div>
+        <div class="m-row now"><span>8 × 8 numbers of C per block</span><div class="track"><i id="bg-0"></i></div><span class="num" id="mg-0"></span></div>
+        <div class="m-row"><span>4 × 4 per block (Parts 2 and 3)</span><div class="track"><i id="bg-1"></i></div><span class="num" id="mg-1"></span></div>
       </div>
     </div>
   </div>
@@ -364,10 +368,9 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Tile sizes.</b> The warp tile, its sub-tiles and each thread's piece of a sub-tile, 1 number here, are all parameters to tune. A WM × WN warp tile needs WM + WN numbers of <span class="vA">As</span> and <span class="vB">Bs</span> per step of k for WM · WN multiply-adds, which is why CUTLASS recommends a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">large warp tile</a>. A Tesla T4 warp has 32 threads, so a 32 × 64 warp tile gives each thread 64 sums, for instance a 4 × 4 piece of each of 4 sub-tiles. Time a few combinations on the T4 to find the fastest.</li>
-      <li><b>Banks.</b> In Part 4, a warp of 32 threads along a row of the block reads <span class="vB">Bs</span> two numbers apart, two threads to a bank. Here every read of a warp asks for a few neighbors. With 32 threads as 4 × 8 in each sub-tile and one number each, a read of <span class="vB">b</span> takes 8 neighbors from a row of <span class="vB">Bs</span>, each in its own <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">bank</a> and broadcast to 4 threads. A read of <span class="vA">a</span> takes 4 neighbors from a column of <span class="vA">As</span>, which lie a row of <span class="vA">As</span>, BK numbers, apart, so they share banks once BK reaches 16. Storing <span class="vA">As</span> transposed, with k along its rows, puts them side by side in memory too.</li>
-      <li><b>Vectorized loads.</b> A <code>float4</code> is 4 neighboring floats, 16 bytes, which a thread loads or stores with one instruction instead of 4 (<a href="https://godbolt.org/z/doP46frqe">compare the two</a>). Real kernels copy tiles this way, 4 neighbors of a row of <span class="vA">A</span> or <span class="vB">B</span> per thread, and read <span class="vA">a</span> and <span class="vB">b</span> 4 at a time from each 4 × 4 piece of note 1, which needs <span class="vA">As</span> transposed (note 2). The same bytes move with a quarter of the instructions, leaving the warp schedulers more turns for multiply-adds. A <code>float4</code> must start at a <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#vector-types-alignment-requirements-in-device-code">multiple of 16 bytes</a>, so N must be a multiple of 4.</li>
-      <li><b>Software pipelining.</b> As Part 2's notes describe, CUTLASS keeps two tiles of <span class="vA">As</span> and <span class="vB">Bs</span> in shared memory, so the copy of the next tile overlaps the math on this one. It also <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">double-buffers registers</a>: a thread reads the next step's <span class="vA">a</span> and <span class="vB">b</span> from shared memory while it multiplies this step's. Copying straight from global to shared memory, without registers, needs <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html#advanced-kernels-async-copies">compute capability 8.0</a>, and the T4 is <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html">7.5</a>. So each thread loads its numbers of the next tile into registers before this tile's multiply-adds and stores them into the other buffer after them: the loads finish while the multiply-adds run.</li>
+      <li><b>Square and block sizes.</b> Both are parameters to tune. With a TM × TN square per thread, each step reads TM numbers of <span class="vA">As</span> and TN of <span class="vB">Bs</span> for TM · TN multiply-adds. A block covering BM × BN of <span class="vC">C</span> copies BM + BN numbers from global memory per step of k, for BM · BN numbers of <span class="vC">C</span>. Bigger squares and blocks reuse more of what they read, but need more registers and shared memory, so time a few combinations on the Tesla T4, at the matrix sizes in use, to find the fastest.</li>
+      <li><b>Registers.</b> A thread needs TM · TN registers for its sums and TM + TN for <span class="vA">a</span> and <span class="vB">b</span>. A Tesla T4 SM (streaming multiprocessor) has 65,536 registers: 64 per thread when all 1,024 threads it can hold are there. Past that, <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps fit per SM</a>, and each thread's TM · TN independent multiply-adds have to keep it busy instead.</li>
+      <li><b>Banks.</b> The threads of a warp read <span class="vB">Bs</span> two numbers apart. Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, with successive 4-byte words in successive banks, so the 4 threads here hit 4 different banks. A real warp of 32 threads along a row of the block would put two threads in each bank, and the two reads would take turns. CUTLASS lays out its reads of shared memory to be <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">conflict-free</a>.</li>
     </ol>
   </section>
 
@@ -378,11 +381,8 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 (() => {
   'use strict';
 
-  const N = 16, BM = 8, BN = 8, BK = 4, TILES = N / BK;   // as in Part 4: a block covers BM × BN of C and walks k in tiles BK wide
-  const WM = 4, WN = 4, WX = BN / WN;                       // each warp covers a WM × WN square of its block's C, WX squares side by side
-  const WS = 4, SM = 2, SN = 2;                             // WS threads per warp; a sub-tile is SM × SN, one number per thread
-  const MI = WM / SM, NI = WN / SN;                         // sub-tiles per warp square, so each thread keeps MI × NI sums
-  const NW = (BM / WM) * WX, NT = NW * WS;                  // warps and threads per block
+  const N = 16, BM = 8, BN = 8, BK = 4, TILES = N / BK;   // N×N matrices; a block covers BM × BN of C and walks k in tiles BK wide
+  const TM = 2, TN = 2, TX = BN / TN, TY = BM / TM;        // each thread computes a TM × TN square of C, so a block is TX × TY threads
   const NBX = N / BN;
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // memory doesn't answer every request equally fast, so each copy lands at its own time
@@ -410,40 +410,28 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   }
 
   // ---------- who we follow ----------
-  // Thread t is lane l = t mod WS of warp w = t ÷ WS. Warp w's square starts at row wr, column wc of the block;
-  // lane l sits at row l ÷ SN, column l mod SN of every sub-tile, so its sums are SM rows and SN columns apart.
+  // Thread (tx, ty) computes rows TM·ty .. and columns TN·tx .. of its block. A warp is one row of threads.
   let level = 'block';
-  const anchor = { bx: 1, by: 0, t: 6 };            // a thread; its warp and block follow from it
-  const warpOf = (t) => Math.floor(t / WS), laneOf = (t) => t % WS;
-  function place(t) {
-    const w = warpOf(t), l = laneOf(t);
-    return { w, l, wr: WM * Math.floor(w / WX), wc: WN * (w % WX), lr: Math.floor(l / SN), lc: l % SN };
-  }
-  const rowsOf = (t) => { const p = place(t); return Array.from({ length: MI }, (_, m) => p.wr + p.lr + SM * m); };   // rows of its block thread t computes
-  const colsOf = (t) => { const p = place(t); return Array.from({ length: NI }, (_, n) => p.wc + p.lc + SN * n); };   // and columns
-  function owner(i, j) {                            // cell (i, j) of the block is acc[m][n] of thread t
-    const w = Math.floor(i / WM) * WX + Math.floor(j / WN), ii = i % WM, jj = j % WN;
-    return { t: w * WS + (ii % SM) * SN + (jj % SN), m: Math.floor(ii / SM), n: Math.floor(jj / SN) };
-  }
-  const inGroup = (t) => level === 'block' || (level === 'warp' ? warpOf(t) === warpOf(anchor.t) : t === anchor.t);
+  const anchor = { bx: 1, by: 0, tx: 2, ty: 1 };  // a thread; its warp and block follow from it
+  const SIZE = { thread: 1, warp: TX, block: TX * TY };
+  const inGroup = (tx, ty) => level === 'block' || (ty === anchor.ty && (level === 'warp' || tx === anchor.tx));
   const R0 = () => anchor.by * BM, C0 = () => anchor.bx * BN;
-  const warpNo = (bx, by, w) => (by * NBX + bx) * NW + w;
+  const warpNo = (bx, by, ty) => (by * NBX + bx) * TY + ty;
   const blockName = () => `block (${anchor.bx}, ${anchor.by})`;
-  // tiles are copied as in Part 4: in half h, warp w copies row 4h + w of the A tile and columns 4h .. of row w of the B tile, a lane each
-  const copierA = (i, j) => (i % NW) * WS + j;      // As[i][j]
-  const copierB = (i, j) => i * WS + (j % WS);      // Bs[i][j]
-  const group = () => Array.from({ length: NT }, (_, t) => t).filter(inGroup);
-  function groupName() {
-    if (level === 'thread') return `thread ${anchor.t}`;
-    if (level === 'warp') return `warp ${warpNo(anchor.bx, anchor.by, warpOf(anchor.t))}`;
-    return blockName();
+  const rowsOf = (ty) => Array.from({ length: TM }, (_, m) => TM * ty + m);   // rows of its block a thread computes
+  const colsOf = (tx) => Array.from({ length: TN }, (_, n) => TN * tx + n);   // and columns
+  // each tile is copied in two halves h, each a 4 × 4 square copied as in Part 2: one row per warp
+  const copierA = (i, j) => [j, i % TY];           // As[i][j], i = 4h + ty, is copied by thread (j, i mod 4)
+  const copierB = (i, j) => [j % TX, i];           // Bs[i][j], j = 4h + tx, is copied by thread (j mod 4, i)
+  function group() {
+    const out = [];
+    for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) if (inGroup(tx, ty)) out.push([tx, ty]);
+    return out;
   }
-  // the block cells a level's group covers, as rectangles [[i0, j0], [i1, j1]]: a thread's spread sums one by one, a warp's square, the whole block
-  function groupRects(lv, t) {
-    const p = place(t);
-    if (lv === 'thread') return rowsOf(t).flatMap((i) => colsOf(t).map((j) => [[i, j], [i, j]]));
-    if (lv === 'warp') return [[[p.wr, p.wc], [p.wr + WM - 1, p.wc + WN - 1]]];
-    return [[[0, 0], [BM - 1, BN - 1]]];
+  function groupName() {
+    if (level === 'thread') return `thread (${anchor.tx}, ${anchor.ty})`;
+    if (level === 'warp') return `warp ${warpNo(anchor.bx, anchor.by, anchor.ty)}`;
+    return blockName();
   }
 
   // ---------- picture: global memory left, one block on the chip right ----------
@@ -463,7 +451,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   const GL = { cell: 11, gap: 12 };
   GL.m = N * GL.cell; GL.size = 2 * GL.m + GL.gap;
   GL.A = [0, GL.m + GL.gap]; GL.B = [GL.m + GL.gap, 0]; GL.C = [GL.m + GL.gap, GL.m + GL.gap];
-  const SH = { cell: 40, gap: 12, reg: 5 };        // reg: how far a register's dot sits in from its cell's edge
+  const SH = { cell: 40, gap: 12, reg: 5 };        // reg: how far a register's dot sits in from its thread's edge
   SH.k = BK * SH.cell; SH.size = SH.k + SH.gap + BN * SH.cell;   // BM = BN, so the view is square
   SH.A = [0, SH.k + SH.gap]; SH.B = [SH.k + SH.gap, 0]; SH.T = [SH.k + SH.gap, SH.k + SH.gap];
 
@@ -481,33 +469,24 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     Object.assign(g.dataset, { kind, i, j });
     return g;
   }
-  // one sum: a bar that fills as it adds products, its thread's number in a pill, and the registers kept in it:
-  // a[m] at the left edge of the thread's first sum in row m, b[n] at the top edge of its first sum in column n
-  function accCell(parent, i, j) {
-    const c = SH.cell, own = owner(i, j);
-    const g = el('g', { class: 'cell acc', transform: `translate(${SH.T[0] + j * c} ${SH.T[1] + i * c})` }, parent);
-    el('rect', { class: 'hit', width: c, height: c }, g);
-    el('rect', { class: 'bg', x: 1, y: 1, width: c - 2, height: c - 2, rx: 5 }, g);
-    g.fill = el('rect', { class: 'fill', x: 4, y: c - 4, width: c - 8, height: 0, rx: 3 }, g);
-    el('rect', { class: 'flash', x: 1, y: 1, width: c - 2, height: c - 2, rx: 5 }, g);
-    if (own.n === 0) el('circle', { class: 'reg a', cx: SH.reg, cy: c / 2, r: 4.5 }, g);
-    if (own.m === 0) el('circle', { class: 'reg b', cx: c / 2, cy: SH.reg, r: 4.5 }, g);
-    const s = String(own.t), pw = s.length * 6.6 + 10;
-    el('rect', { class: 'pill', x: c / 2 - pw / 2, y: c / 2 - 8, width: pw, height: 16, rx: 8 }, g);
-    text(g, c / 2, c / 2 + 0.5, s);
-    Object.assign(g.dataset, { kind: 'acc', i, j });
-    g.own = own;
+  // a thread: a TM × TN box with one slot per sum, a dot per a on its left edge and per b on its top edge, and a pill for its label or a word
+  function threadBox(parent, x, y, tx, ty) {
+    const c = SH.cell, w = TN * c, h = TM * c;
+    const g = el('g', { class: 'cell th', transform: `translate(${x} ${y})` }, parent);
+    el('rect', { class: 'hit', width: w, height: h }, g);
+    el('rect', { class: 'bg', x: 1, y: 1, width: w - 2, height: h - 2, rx: 6 }, g);
+    g.fills = [];                                  // g.fills[TN·m + n] is acc[m][n]
+    for (let m = 0; m < TM; m++) for (let n = 0; n < TN; n++) {
+      el('rect', { class: 'slot', x: n * c + 4, y: m * c + 4, width: c - 8, height: c - 8, rx: 4 }, g);
+      g.fills.push(el('rect', { class: 'fill', x: n * c + 4, y: (m + 1) * c - 4, width: c - 8, height: 0, rx: 4 }, g));
+    }
+    el('rect', { class: 'flash', x: 1, y: 1, width: w - 2, height: h - 2, rx: 6 }, g);
+    for (let m = 0; m < TM; m++) el('circle', { class: 'reg a', cx: SH.reg, cy: (m + 0.5) * c, r: 4.5 }, g);
+    for (let n = 0; n < TN; n++) el('circle', { class: 'reg b', cx: (n + 0.5) * c, cy: SH.reg, r: 4.5 }, g);
+    g.pill = el('rect', { class: 'pill', y: h / 2 - 8, height: 16, rx: 8 }, g);
+    g.t = el('text', { x: w / 2, y: h / 2 + 0.5 }, g);
+    Object.assign(g.dataset, { kind: 'th', i: ty, j: tx });
     return g;
-  }
-  // outlines for a group: one rect per box, reusing the group's rects
-  function outline(g, boxes, cls) {
-    while (g.children.length < boxes.length) el('rect', {}, g);
-    [...g.children].forEach((r, q) => {
-      const b = boxes[q];
-      r.setAttribute('visibility', b ? 'visible' : 'hidden');
-      if (b) setBox(r, { ...b, rx: Math.min(7, b.width / 4) });
-    });
-    g.setAttribute('class', cls);
   }
 
   // global memory
@@ -531,16 +510,16 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     tagB.push(text(vG, GL.B[0] - 6, GL.B[1] + (t * BK + BK / 2) * GL.cell, `t=${t}`, 'tag end'));
   }
   const blkFr = el('rect', { class: 'blk-fr', rx: 4 }, vG);
-  const markG = el('g', {}, vG);
-  const hoverG = el('g', {}, vG);                  // hovering C outlines a thread's sums, a warp or a block, as followed
+  const markG = el('rect', { class: 'grp-mark', rx: 6 }, vG);
+  const hoverG = el('rect', { class: 'grp-mark', rx: 6, visibility: 'hidden' }, vG);   // hovering C outlines a thread, warp or block, as followed
   text(vG, 0, 14, 'Global memory', 'vt').dataset.tip = 'global';
   text(vG, 0, 32, 'off chip · slow to reach', 'vs');
   text(vG, GL.B[0] + GL.m + 8, 16, 'B', 'mname b');
   text(vG, GL.A[0], GL.A[1] + GL.m + 24, 'A', 'mname a');
   text(vG, GL.C[0] + GL.m, GL.C[1] + GL.m + 24, 'C', 'mname c end');
 
-  // the followed block: its shared tiles around its sums, with its warps' squares outlined
-  const SA = [], SB = [], ACC = [];
+  // the followed block: its shared tiles around its threads
+  const SA = [], SB = [], TH = [];
   for (let i = 0; i < BM; i++) {
     SA.push([]);
     for (let j = 0; j < BK; j++) SA[i].push(cell(vS, 'as', SH.A[0] + j * SH.cell, SH.A[1] + i * SH.cell, SH.cell, i, j));
@@ -549,18 +528,14 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     SB.push([]);
     for (let j = 0; j < BN; j++) SB[i].push(cell(vS, 'bs', SH.B[0] + j * SH.cell, SH.B[1] + i * SH.cell, SH.cell, i, j));
   }
-  for (let i = 0; i < BM; i++) {
-    ACC.push([]);
-    for (let j = 0; j < BN; j++) ACC[i].push(accCell(vS, i, j));
-  }
-  for (let w = 0; w < NW; w++) {
-    const p = place(w * WS);
-    el('rect', { class: 'warp-fr', x: SH.T[0] + p.wc * SH.cell, y: SH.T[1] + p.wr * SH.cell, width: WN * SH.cell, height: WM * SH.cell, rx: 6 }, vS);
+  for (let ty = 0; ty < TY; ty++) {
+    TH.push([]);
+    for (let tx = 0; tx < TX; tx++) TH[ty].push(threadBox(vS, SH.T[0] + TN * tx * SH.cell, SH.T[1] + TM * ty * SH.cell, tx, ty));   // TH[ty][tx]
   }
   const kTagA = text(vS, 0, SH.A[1] - 8, '', 'tag on');
   const kTagB = text(vS, SH.B[0] - 6, 0, '', 'tag on end');
-  const markS = el('g', {}, vS);
-  const hoverS = el('g', {}, vS);                  // hovering a sum outlines its thread's sums, its warp or the block, as followed
+  const srcMarks = [0, 1, 2, 3].map(() => el('rect', { class: 'src-mark', rx: 9 }, vS));
+  const markS = el('rect', { class: 'grp-mark', rx: 7 }, vS);
   const blkTitle = text(vS, 0, 14, '', 'vt');
   blkTitle.dataset.tip = 'chip';
   text(vS, 0, 32, 'on chip · fast to reach', 'vs');
@@ -583,12 +558,13 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
   }
   const at = (view, origin, size) => (i, j) => [L[view][0] + origin[0] + (j + 0.5) * size, L[view][1] + origin[1] + (i + 0.5) * size];
-  const corner = (i, j) => [L.sh[0] + SH.T[0] + j * SH.cell, L.sh[1] + SH.T[1] + i * SH.cell];   // top-left of sum (i, j) of the block
+  const thAt = (ty, tx) => [L.sh[0] + SH.T[0] + TN * tx * SH.cell, L.sh[1] + SH.T[1] + TM * ty * SH.cell];   // top-left of thread (tx, ty)
   const P = {
     a: at('gl', GL.A, GL.cell), b: at('gl', GL.B, GL.cell), c: at('gl', GL.C, GL.cell),
-    as: at('sh', SH.A, SH.cell), bs: at('sh', SH.B, SH.cell), acc: at('sh', SH.T, SH.cell),
-    ra: (t, m) => { const [x, y] = corner(rowsOf(t)[m], colsOf(t)[0]); return [x + SH.reg, y + SH.cell / 2]; },   // a[m] of thread t
-    rb: (t, n) => { const [x, y] = corner(rowsOf(t)[0], colsOf(t)[n]); return [x + SH.cell / 2, y + SH.reg]; },   // b[n]
+    as: at('sh', SH.A, SH.cell), bs: at('sh', SH.B, SH.cell),
+    acc: at('sh', SH.T, SH.cell),                  // acc[m][n] of thread (tx, ty) sits at row TM·ty + m, column TN·tx + n
+    ra: (ty, tx, m) => { const [x, y] = thAt(ty, tx); return [x + SH.reg, y + (m + 0.5) * SH.cell]; },   // a[m]: left edge of row m
+    rb: (ty, tx, n) => { const [x, y] = thAt(ty, tx); return [x + (n + 0.5) * SH.cell, y + SH.reg]; },   // b[n]: top edge of column n
   };
   function box(origin, size, cells, inset) {      // cells: [[i, j], ...]
     const is = cells.map((c) => c[0]), js = cells.map((c) => c[1]);
@@ -596,27 +572,35 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     return { x: origin[0] + j0 * size + inset, y: origin[1] + i0 * size + inset,
       width: (j1 - j0 + 1) * size - 2 * inset, height: (i1 - i0 + 1) * size - 2 * inset };
   }
-  const shift = (rects, di, dj) => rects.map(([[i0, j0], [i1, j1]]) => [[i0 + di, j0 + dj], [i1 + di, j1 + dj]]);
-  const cellsOf = (t) => rowsOf(t).flatMap((i) => colsOf(t).map((j) => ACC[i][j]));
+  const thCells = (threads) => threads.flatMap(([tx, ty]) => rowsOf(ty).flatMap((i) => colsOf(tx).map((j) => [i, j])));   // cells of the block that threads cover
 
   // ---------- cell contents ----------
   function shared(g, has, stale = false) {
     toggle(g, 'empty', !has);
     toggle(g, 'stale', stale);
   }
-  function acc(g, kDone, regs) {                  // the bar fills as the sum adds more of its N products
-    const h = (SH.cell - 8) * (kDone / N);
-    g.fill.setAttribute('y', SH.cell - 4 - h);
-    g.fill.setAttribute('height', h);
-    toggle(g, 'done', kDone === N);
+  function thread(g, kDone, word, regs) {         // each slot's bar fills as its sum adds more of its N products; kDone may differ per slot
+    const tx = +g.dataset.j, ty = +g.dataset.i, s = word || `${tx},${ty}`;
+    g.t.textContent = s;
+    toggle(g, 'word', word);
     toggle(g, 'regs', regs);
+    const pw = Math.max(18, s.length * 6.6 + 12);
+    g.pill.setAttribute('x', (TN * SH.cell) / 2 - pw / 2);
+    g.pill.setAttribute('width', pw);
+    const ks = Array.isArray(kDone) ? kDone : g.fills.map(() => kDone);
+    g.fills.forEach((f, q) => {
+      const m = Math.floor(q / TN), h = (SH.cell - 8) * (ks[q] / N);
+      f.setAttribute('y', (m + 1) * SH.cell - 4 - h);
+      f.setAttribute('height', h);
+    });
+    toggle(g, 'done', ks.every((k) => k === N));
   }
   function pulse(nodes) {
     nodes.forEach((g) => g.classList.remove('pulse'));
     svg.getBoundingClientRect();                   // restart the flash on every node in the same frame
     nodes.forEach((g) => g.classList.add('pulse'));
   }
-  const allAcc = () => ACC.flat();
+  const allTH = () => TH.flat();
   const allShared = () => [...SA.flat(), ...SB.flat()];
 
   // ---------- code ----------
@@ -625,70 +609,58 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     codeLines.forEach((ln) => { toggle(ln, 'on', on.includes(ln.dataset.id)); toggle(ln, 'near', near.includes(ln.dataset.id)); });
   }
   const CODE = {
-    setup: [['shared', 'wl', 'r', 'c', 'wrc', 'ij0', 'acc'], []],
+    setup: [['shared', 'r', 'c', 'rowcol', 'acc'], []],
     load: [['hload', 'ij', 'ldA', 'ldB', 'sync1'], ['tile']],
     fma: [['a', 'b', 'mn', 'fma'], ['tile', 'kloop']],
-    store: [['st', 'stij', 'st1'], []],
+    store: [['st', 'st1'], []],
   };
-
-  // ---------- read count: per step of k, shared memory reads a number once for all the threads of a warp that ask for it together ----------
-  const p4rows = (t) => [0, 1].map((m) => 2 * Math.floor(t / 4) + m);   // Part 4: thread (t mod 4, t ÷ 4) owns a 2 × 2 square; its warp is its row of threads
-  const p4cols = (t) => [0, 1].map((n) => 2 * (t % 4) + n);
-  function perK(ts, rows, cols) {
-    const byWarp = new Map();
-    for (const t of ts) {
-      const w = warpOf(t);
-      if (!byWarp.has(w)) byWarp.set(w, [new Set(), new Set()]);
-      rows(t).forEach((i) => byWarp.get(w)[0].add(i));
-      cols(t).forEach((j) => byWarp.get(w)[1].add(j));
-    }
-    return [...byWarp.values()].reduce((s, [a, b]) => s + a.size + b.size, 0);
-  }
-  function meter(pos) {
-    const { kDone } = progress(pos), grp = group();
-    const now = perK(grp, rowsOf, colsOf) * kDone, prev = perK(grp, p4rows, p4cols) * kDone, max = perK(grp, p4rows, p4cols) * N;
-    $('#m-head').textContent = `Numbers shared memory reads · ${groupName()}`;
-    $('#m-now').textContent = now;
-    $('#m-prev').textContent = prev;
-    $('#b-now').style.width = `${(100 * now) / max}%`;
-    $('#b-prev').style.width = `${(100 * prev) / max}%`;
-  }
 
   // ---------- one-line caption ----------
   const vA = (s) => `<span class="vA">${s}</span>`, vB = (s) => `<span class="vB">${s}</span>`, vC = (s) => `<span class="vC">${s}</span>`;
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
   function narrate(s) {
-    const t = anchor.t, p = place(t), r0 = R0(), c0 = C0(), w = warpNo(anchor.bx, anchor.by, p.w);
-    const [i0, i1] = rowsOf(t), [j0, j1] = colsOf(t);
-    const wRows = `${r0 + p.wr}..${r0 + p.wr + WM - 1}`, wCols = `${c0 + p.wc}..${c0 + p.wc + WN - 1}`;
-    const prev = perK(Array.from({ length: NT }, (_, q) => q), p4rows, p4cols);
+    const { tx, ty } = anchor, [i0, i1] = rowsOf(ty), [j0, j1] = colsOf(tx), r = R0() + i0, c = C0() + j0, w = warpNo(anchor.bx, anchor.by, ty);
+    const sq = vC(`C[${r}..${r + 1}][${c}..${c + 1}]`);
+    const who = ([x, y]) => (x === tx && y === ty ? 'itself' : `<span class="src-ref">thread (${x}, ${y})</span>`);   // ringed like its src-mark
     if (s.kind === 'setup') {
-      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined ${BM} × ${BN} numbers of ${vC('C')} with ${NT} threads, as in Part 4, but each of its ${NW} warps now takes a ${WM} × ${WN} square, outlined on the chip. Each thread keeps one sum in each ${SM} × ${SN} sub-tile of its warp's square.`;
-      if (level === 'warp') return `<b>Warp ${w}</b> of ${blockName()}, threads ${p.w * WS} to ${p.w * WS + WS - 1}, computes ${vC(`C[${wRows}][${wCols}]`)}. It needs rows ${wRows} of ${vA('A')} and columns ${wCols} of ${vB('B')}, where a Part 4 warp needed 2 rows and 8 columns.`;
-      return `<b>Thread ${t}</b> of ${blockName()}, lane ${p.l} of warp ${w}, computes the outlined numbers of ${vC('C')} in rows ${r0 + i0} and ${r0 + i1} and columns ${c0 + j0} and ${c0 + j1}: one in each sub-tile of its warp's square. It needs those rows of ${vA('A')} and columns of ${vB('B')}.`;
+      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined ${BM} × ${BN} numbers of ${vC('C')} with ${TX * TY} threads, as many as Part 2 used for 4 × 4. Each thread keeps a ${TM} × ${TN} square of sums.`;
+      if (level === 'warp') return `<b>Warp ${w}</b> of ${blockName()} computes ${vC(`C[${r}..${r + 1}][${C0()}..${C0() + BN - 1}]`)}: ${TX} threads side by side, a ${TM} × ${TN} square each.`;
+      return `<b>Thread (${tx}, ${ty})</b> of ${blockName()} computes ${sq} in acc. It needs rows ${r} and ${r + 1} of ${vA('A')} and columns ${c} and ${c + 1} of ${vB('B')}.`;
     }
     if (s.kind === 'load') {
-      const k0 = s.t * BK;
-      if (level === 'block') return `<b>Tile ${s.t}</b>: ${BM} × ${BK} numbers of ${vA('A')} and ${BK} × ${BN} of ${vB('B')}, copied as in Part 4, 2 of each per thread, then <code>sync()</code>.`;
-      if (level === 'warp') return `<b>Tile ${s.t}</b>: warp ${w} copies rows ${p.w} and ${p.w + NW} of the ${vA('A')} tile and row ${p.w} of the ${vB('B')} tile, as in Part 4. Most of what it will read, other warps copy.`;
-      return `<b>Tile ${s.t}</b>: this thread copies ${vA(`A[${r0 + p.w}][${k0 + p.l}]`)}, ${vA(`A[${r0 + p.w + NW}][${k0 + p.l}]`)}, ${vB(`B[${k0 + p.w}][${c0 + p.l}]`)} and ${vB(`B[${k0 + p.w}][${c0 + p.l + WS}]`)}, as in Part 4.`;
+      const k0 = s.t * BK, R = R0(), C = C0();
+      if (level === 'block') return `<b>Tile ${s.t}</b>: ${BM} × ${BK} numbers of ${vA('A')} and ${BK} × ${BN} of ${vB('B')}, twice Part 2's tiles for as many threads, so each copies 2 of each, then <code>sync()</code>.`;
+      if (level === 'warp') return `<b>Tile ${s.t}</b>: warp ${w} copies rows ${ty} and ${ty + TY} of the ${vA('A')} tile and row ${ty} of the ${vB('B')} tile, ${TX} neighbors at a time: 4 coalesced loads.`;
+      return `<b>Tile ${s.t}</b>: this thread copies ${vA(`A[${R + ty}][${k0 + tx}]`)}, ${vA(`A[${R + ty + TY}][${k0 + tx}]`)}, ${vB(`B[${k0 + ty}][${C + tx}]`)} and ${vB(`B[${k0 + ty}][${C + tx + TX}]`)}, but it will read ${TM * BK} numbers of ${vA('As')} and ${TN * BK} of ${vB('Bs')}.`;
     }
     if (s.kind === 'fma') {
-      const head = `<b>Tile ${s.t}, k = ${s.k}</b>`;
-      if (level === 'block') return `${head}: each warp reads ${WM} numbers of ${vA('As')} into ${vA('a')} and ${WN} of ${vB('Bs')} into ${vB('b')}, each for 2 of its threads, then fills its square one sub-tile at a time: ${NW * (WM + WN)} numbers from shared memory for ${NT * MI * NI} multiply-adds, where Part 4's warps read ${prev}.`;
-      if (level === 'warp') return `${head}: warp ${w} reads ${vA(`As[${p.wr}..${p.wr + WM - 1}][${s.k}]`)} into ${vA('a')} and ${vB(`Bs[${s.k}][${p.wc}..${p.wc + WN - 1}]`)} into ${vB('b')}, each number for 2 of its ${WS} threads, then fills its ${MI * NI} sub-tiles one after another.`;
-      return `${head}: reads ${vA(`As[${i0}][${s.k}]`)} and ${vA(`As[${i1}][${s.k}]`)} into ${vA('a')}, and ${vB(`Bs[${s.k}][${j0}]`)} and ${vB(`Bs[${s.k}][${j1}]`)} into ${vB('b')}. ${vA('a')}[m] meets ${vB('b')}[n] in sub-tile (m, n): 4 multiply-adds, as in Part 4.`;
+      const head = `<b>Tile ${s.t}, k = ${s.k}</b>`, n = TX * TY, f = TM * TN * n;
+      if (level === 'block') return `${head}: each thread reads 2 numbers of ${vA('As')} into ${vA('a')} and 2 of ${vB('Bs')} into ${vB('b')}, and multiplies each ${vA('a')} by each ${vB('b')}: ${(TM + TN) * n} shared memory reads for ${f} multiply-adds. Part 3 needs ${1.5 * f}, Part 2 ${2 * f}.`;
+      if (level === 'warp') return `${head}: all ${TX} threads of warp ${w} read the same ${vA(`As[${i0}][${s.k}]`)} and ${vA(`As[${i1}][${s.k}]`)} into ${vA('a')}, and each reads its own 2 numbers of ${vB('Bs')} into ${vB('b')}.`;
+      return `${head}: reads ${vA(`As[${i0}][${s.k}]`)} and ${vA(`As[${i1}][${s.k}]`)} into ${vA('a')}, copied by ${who(copierA(i0, s.k))} and ${who(copierA(i1, s.k))}, and ${vB(`Bs[${s.k}][${j0}]`)} and ${vB(`Bs[${s.k}][${j1}]`)} into ${vB('b')}, copied by ${who(copierB(s.k, j0))} and ${who(copierB(s.k, j1))}. Each ${vA('a')} meets each ${vB('b')}: 4 multiply-adds.`;
     }
-    if (level === 'block') return `Every thread writes its ${MI * NI} finished sums to ${vC('C')}, once.`;
-    if (level === 'warp') return `Warp ${w} writes its square, ${vC(`C[${wRows}][${wCols}]`)}.`;
-    return `This thread writes its ${MI * NI} sums to ${vC('C')}: rows ${r0 + i0} and ${r0 + i1}, columns ${c0 + j0} and ${c0 + j1}.`;
+    if (level === 'block') return `Every thread writes its ${TM * TN} finished sums to ${vC('C')}, once.`;
+    if (level === 'warp') return `Warp ${w} writes ${vC(`C[${r}..${r + 1}][${C0()}..${C0() + BN - 1}]`)}: 2 rows of ${BN} neighbors.`;
+    return `This thread writes its ${TM * TN} sums to ${sq}.`;
+  }
+
+  // ---------- read counts: this kernel against Parts 2 and 3, for the same numbers of C ----------
+  const bar = (id, n, max) => { $(`#m${id}`).textContent = n; $(`#b${id}`).style.width = `${(100 * n) / max}%`; };
+  function meter(pos) {
+    const { tile, kDone } = progress(pos), n = SIZE[level];
+    // shared, per k: TM + TN here; Part 3 reads 3 per 2 numbers of C, Part 2 2 per number
+    [4 * n * kDone, 6 * n * kDone, 8 * n * kDone].forEach((v, q) => bar(`s-${q}`, v, 8 * n * N));
+    // global, per tile: 2 + 2 copies per thread here; a 4 × 4 block copies 2 per number of C
+    [4 * n * (tile + 1), 8 * n * (tile + 1)].forEach((v, q) => bar(`g-${q}`, v, 8 * n * TILES));
+    $('#ms-head').textContent = `Numbers read from shared memory · ${groupName()}`;
+    $('#mg-head').textContent = `Numbers read from global memory · ${groupName()}`;
   }
 
   // ---------- one step, drawn at rest ----------
   function paint(pos) {
     const s = STEPS[pos], { tile, kDone } = progress(pos), r0 = R0(), c0 = C0(), grp = group();
-    const rows = new Set(grp.flatMap(rowsOf)), cols = new Set(grp.flatMap(colsOf));
-    const mineA = (i, j) => inGroup(copierA(i, j)), mineB = (i, j) => inGroup(copierB(i, j));   // spot copied by the followed group
+    const rows = new Set(grp.flatMap(([, ty]) => rowsOf(ty))), cols = new Set(grp.flatMap(([tx]) => colsOf(tx)));
+    const mineA = (i, j) => inGroup(...copierA(i, j)), mineB = (i, j) => inGroup(...copierB(i, j));   // spot copied by the followed group
 
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
       const a = PA[i][j], b = PB[i][j];
@@ -709,7 +681,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     toggle(vG, 'idle', s.kind === 'fma');
     setBox(blkFr, box(GL.C, GL.cell, [[r0, c0], [r0 + BM - 1, c0 + BN - 1]], -1.5));
 
-    // load: each spot is written by its copier · fma: thread t reads As[i][k] for its rows i and Bs[k][j] for its columns j
+    // load: each spot is written by its copier · fma: thread (tx, ty) reads As[TM·ty + m][k] and Bs[k][TN·tx + n]
     for (let i = 0; i < BM; i++) for (let j = 0; j < BK; j++) {
       shared(SA[i][j], tile >= 0);
       toggle(SA[i][j], 'tgt', s.kind === 'load' && level !== 'block' && mineA(i, j));
@@ -720,20 +692,27 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
       toggle(SB[i][j], 'tgt', s.kind === 'load' && level !== 'block' && mineB(i, j));
       toggle(SB[i][j], 'cur', s.kind === 'fma' && i === s.k && cols.has(j));
     }
-    allAcc().forEach((g) => {
-      acc(g, kDone, s.kind === 'fma');
-      ['wait', 'cur'].forEach((c) => toggle(g, c, false));
-      toggle(g, 'mine', level !== 'block' && inGroup(g.own.t));
-    });
+    allTH().forEach((g) => { thread(g, kDone, '', s.kind === 'fma'); toggle(g, 'wait', false); });
     kTagA.textContent = kTagB.textContent = s.kind === 'fma' ? `k=${s.k}` : '';
     kTagA.setAttribute('x', SH.A[0] + ((s.k || 0) + 0.5) * SH.cell);
     kTagB.setAttribute('y', SH.B[1] + ((s.k || 0) + 0.5) * SH.cell);
     blkTitle.textContent = cap(blockName());
-    syncTxt.textContent = s.kind === 'load' ? `all ${NT} passed sync()` : '';
+    syncTxt.textContent = s.kind === 'load' ? `all ${TX * TY} passed sync()` : '';
 
-    const rects = groupRects(level, anchor.t);
-    outline(markS, rects.map((r) => box(SH.T, SH.cell, r, level === 'block' ? -3 : 1)), `grp-mark ${level}`);
-    outline(markG, level === 'block' ? [] : shift(rects, r0, c0).map((r) => box(GL.C, GL.cell, r, 0.5)), `grp-mark ${level}`);
+    setBox(markS, box(SH.T, SH.cell, thCells(grp), level === 'block' ? -3 : 1));
+    markS.setAttribute('class', `grp-mark ${level}`);
+    setBox(markG, box(GL.C, GL.cell, thCells(grp).map(([i, j]) => [r0 + i, c0 + j]), 0.5));
+    markG.setAttribute('visibility', level === 'block' ? 'hidden' : 'visible');
+    // following one thread through k: dashed rings on the threads that copied the numbers it reads
+    const { tx, ty } = anchor;
+    const srcs = s.kind === 'fma' && level === 'thread'
+      ? [...rowsOf(ty).map((i) => copierA(i, s.k)), ...colsOf(tx).map((j) => copierB(s.k, j))].filter(([x, y]) => x !== tx || y !== ty)
+      : [];
+    srcMarks.forEach((m, n) => {
+      const src = srcs[n];
+      m.setAttribute('visibility', src ? 'visible' : 'hidden');
+      if (src) setBox(m, box(SH.T, SH.cell, thCells([src]), 4));
+    });
 
     codeOn(...CODE[s.kind]);
     $('#live-t').textContent = s.kind === 'load' || s.kind === 'fma' ? `t = ${s.t}` : '';
@@ -779,81 +758,78 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   }
 
   function animateLoad(s) {
-    const r0 = R0(), c0 = C0(), k0 = s.t * BK, per = (BM * BK + BK * BN) / NT;
+    const r0 = R0(), c0 = C0(), k0 = s.t * BK, n = TX * TY, per = (BM * BK + BK * BN) / n;
     allShared().forEach((g) => shared(g, s.t > 0, true));   // the old tile fades; nothing yet before tile 0
-    allAcc().forEach((g) => acc(g, k0, false));
+    allTH().forEach((g) => thread(g, k0, 'copy'));
     syncTxt.textContent = '';
     const copy = () => {
       codeOn(['hload', 'ij', 'ldA', 'ldB'], ['tile']);
-      const got = Array(NT).fill(0);
+      const got = TH.map((row) => row.map(() => 0));
       let here = 0;
-      const landed = (g, t) => {
+      const landed = (g, tx, ty) => {
         shared(g, true);
         pulse([g]);
-        if (++got[t] < per) return;                // a thread reaches sync() once all its copies have landed
-        cellsOf(t).forEach((c) => toggle(c, 'wait', true));
-        syncTxt.textContent = `at sync(): ${++here} of ${NT}`;
-        if (here === NT) later(release, 350);
+        if (++got[ty][tx] < per) return;           // a thread reaches sync() once all its copies have landed
+        thread(TH[ty][tx], k0, 'wait');
+        toggle(TH[ty][tx], 'wait', true);
+        syncTxt.textContent = `at sync(): ${++here} of ${n}`;
+        if (here === n) later(release, 350);
       };
       const items = [];
       for (let i = 0; i < BM; i++) for (let j = 0; j < BK; j++) {
-        const t = copierA(i, j);
-        items.push({ cls: 'a', faint: !inGroup(t), dur: 650 + 550 * LAG[s.t].a[i][j],
-          from: P.a(r0 + i, k0 + j), to: P.as(i, j), land: () => landed(SA[i][j], t) });
+        const [tx, ty] = copierA(i, j);
+        items.push({ cls: 'a', faint: !inGroup(tx, ty), dur: 650 + 550 * LAG[s.t].a[i][j],
+          from: P.a(r0 + i, k0 + j), to: P.as(i, j), land: () => landed(SA[i][j], tx, ty) });
       }
       for (let i = 0; i < BK; i++) for (let j = 0; j < BN; j++) {
-        const t = copierB(i, j);
-        items.push({ cls: 'b', faint: !inGroup(t), dur: 650 + 550 * LAG[s.t].b[i][j],
-          from: P.b(k0 + i, c0 + j), to: P.bs(i, j), land: () => landed(SB[i][j], t) });
+        const [tx, ty] = copierB(i, j);
+        items.push({ cls: 'b', faint: !inGroup(tx, ty), dur: 650 + 550 * LAG[s.t].b[i][j],
+          from: P.b(k0 + i, c0 + j), to: P.bs(i, j), land: () => landed(SB[i][j], tx, ty) });
       }
       fly(items);
     };
     const release = () => {
       codeOn(['sync1'], ['hload', 'ij', 'ldA', 'ldB', 'tile']);
-      allAcc().forEach((g) => toggle(g, 'wait', false));
-      pulse(allAcc());
-      syncTxt.textContent = `all ${NT} passed sync()`;
+      allTH().forEach((g) => { thread(g, k0); toggle(g, 'wait', false); });
+      pulse(allTH());
+      syncTxt.textContent = `all ${n} passed sync()`;
     };
     if (s.t > 0) { codeOn(['sync2'], ['tile']); later(copy, 450); } else copy();
   }
 
-  // first every thread reads its a's and b's into registers, then every warp fills sub-tile (m, n) of its square from a[m] and b[n]
+  // first every thread reads its a's and b's into registers, then each sum takes its own a and b
   function animateFma(s) {
-    const done = Array(MI * NI).fill(s.kg);
-    allAcc().forEach((g) => acc(g, s.kg, false));
+    const done = Array(TM * TN).fill(s.kg);
+    allTH().forEach((g) => thread(g, s.kg));
     codeOn(['a', 'b'], ['tile', 'kloop']);
     const use = () => {
-      for (let m = 0; m < MI; m++) for (let n = 0; n < NI; n++) {
-        const q = NI * m + n, sub = allAcc().filter((g) => g.own.m === m && g.own.n === n);
+      for (let m = 0; m < TM; m++) for (let n = 0; n < TN; n++) {
+        const q = TN * m + n;
         later(() => {
           codeOn(['mn', 'fma'], ['tile', 'kloop', 'a', 'b']);
           $('#live-mn').textContent = `m, n = ${m}, ${n}`;
-          allAcc().forEach((g) => toggle(g, 'cur', false));
-          sub.forEach((g) => toggle(g, 'cur', true));
           const items = [];
-          for (let t = 0; t < NT; t++) {
-            const faint = !inGroup(t), to = P.acc(rowsOf(t)[m], colsOf(t)[n]);
-            items.push({ cls: 'a', faint, dur: 380, from: P.ra(t, m), to });
-            items.push({ cls: 'b', faint, dur: 380, from: P.rb(t, n), to });
+          for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) {
+            const faint = !inGroup(tx, ty), to = P.acc(TM * ty + m, TN * tx + n);
+            items.push({ cls: 'a', faint, dur: 380, from: P.ra(ty, tx, m), to });
+            items.push({ cls: 'b', faint, dur: 380, from: P.rb(ty, tx, n), to });
           }
           items[items.length - 1].land = () => {
             done[q] = s.kg + 1;
-            allAcc().forEach((g) => acc(g, done[NI * g.own.m + g.own.n], true));
-            if (q < MI * NI - 1) return;
-            allAcc().forEach((g) => toggle(g, 'cur', false));
-            pulse(allAcc()); codeOn(...CODE.fma); $('#live-mn').textContent = '';
+            allTH().forEach((g) => thread(g, done, '', true));
+            if (q === TM * TN - 1) { pulse(allTH()); codeOn(...CODE.fma); $('#live-mn').textContent = ''; }
           };
           fly(items);
-        }, q * 260);
+        }, q * 200);
       }
     };
     const items = [];
-    for (let t = 0; t < NT; t++) {
-      const faint = !inGroup(t);
-      rowsOf(t).forEach((i, m) => items.push({ cls: 'a', faint, dur: 400, from: P.as(i, s.k), to: P.ra(t, m) }));
-      colsOf(t).forEach((j, n) => items.push({ cls: 'b', faint, dur: 400, from: P.bs(s.k, j), to: P.rb(t, n) }));
+    for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) {
+      const faint = !inGroup(tx, ty);
+      for (let m = 0; m < TM; m++) items.push({ cls: 'a', faint, dur: 400, from: P.as(TM * ty + m, s.k), to: P.ra(ty, tx, m) });
+      for (let n = 0; n < TN; n++) items.push({ cls: 'b', faint, dur: 400, from: P.bs(s.k, TN * tx + n), to: P.rb(ty, tx, n) });
     }
-    items[items.length - 1].land = () => { allAcc().forEach((g) => acc(g, s.kg, true)); later(use, 120); };
+    items[items.length - 1].land = () => { allTH().forEach((g) => thread(g, s.kg, '', true)); later(use, 120); };
     fly(items);
   }
 
@@ -862,10 +838,10 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     PC.flat().forEach((g) => toggle(g, 'stored', false));
     codeOn(['sync2']);
     later(() => {
-      codeOn(['st', 'stij', 'st1']);
+      codeOn(['st', 'st1']);
       const items = [];
-      for (let i = 0; i < BM; i++) for (let j = 0; j < BN; j++)
-        items.push({ cls: 'c', faint: !inGroup(ACC[i][j].own.t), dur: 800, from: P.acc(i, j), to: P.c(r0 + i, c0 + j) });
+      for (let ty = 0; ty < TY; ty++) for (let tx = 0; tx < TX; tx++) for (const i of rowsOf(ty)) for (const j of colsOf(tx))
+        items.push({ cls: 'c', faint: !inGroup(tx, ty), dur: 800, from: P.acc(i, j), to: P.c(r0 + i, c0 + j) });
       items[items.length - 1].land = () => { PC.flat().forEach((g) => toggle(g, 'stored', true)); pulse(PC.flat()); };
       fly(items);
     }, 450);
@@ -883,60 +859,57 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    warptile: 'A level between block and thread: each warp computes its own tile of its block\'s part of C. A warp is the group of threads that runs each instruction together, so its tile decides which numbers each read of shared memory asks for.',
-    subtile: 'A piece of the warp\'s square with one number per thread: 2 × 2 for 4 threads. The warp\'s threads fill one sub-tile together, then move on to the next.',
+    tiling: 'Each thread computes a small block of C: here 2 × 2. Real kernels tune the size for their GPU. 2D because the block spans rows and columns, where Part 3\'s was a line.',
+    reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
-    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads in 4 warps, each warp\'s 4 × 4 square of C outlined. Each sum is labeled with the thread that keeps it in a register. The other 3 blocks do the same at the same time.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 16 threads.',
-    shared: 'The same tiles as Part 4: 8 rows of A by 4 columns, and 4 rows of B by 8 columns, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[8][4], Bs[4][8];</code>',
-    tid: 'This thread\'s place in its block, 0 to 15. CUDA puts consecutive threads in the same warp: 4 at a time here, 32 on a real GPU.',
-    wl: 'Its warp w, 0 to 3, and its lane l, its place in the warp, 0 to 3.',
-    r: 'The first row of C this block covers. A block covers 8 rows and 8 columns, as in Part 4.',
+    chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads, each with registers for its 4 sums, a and b. The other 3 blocks do the same at the same time.',
+    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 4 threads.',
+    shared: 'Tiles twice Part 2\'s size: 8 rows of A by 4 columns, and 4 rows of B by 8 columns, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[8][4], Bs[4][8];</code>',
+    tid: 'This thread\'s place in its block: tx and ty each from 0 to 3. The block is 4 × 4 threads, as in Part 2.',
+    r: 'The first row of C this block covers. A block now covers 8 rows and 8 columns.',
     c: 'The first column of C this block covers.',
-    wrc: 'The top-left corner of warp w\'s 4 × 4 square in the block: warps 0 and 1 take the top half, 2 and 3 the bottom.',
-    ij0: 'This thread\'s first sum in its warp\'s square. Lane l sits at row l / 2, column l mod 2 of every 2 × 2 sub-tile, so its other sums are 2 rows or 2 columns further on.',
-    acc: 'Four running sums, one in each sub-tile of the warp\'s square. All four live in registers.<br>CUDA: <code>float acc[2][2] = {};</code>',
+    rowcol: 'The top-left corner of this thread\'s 2 × 2 square of C. <code>threadIdx.x</code> still runs along a row of C.',
+    acc: 'Four running sums, one for each number of this thread\'s square of C. All four live in registers.<br>CUDA: <code>float acc[2][2] = {};</code>',
     tile: 'Walk along k one tile at a time: 4 columns of A and 4 rows of B per tile. N = 16 makes 4 tiles.',
-    hload: 'Each tile has 32 numbers for 16 threads, so each thread copies 2 of A and 2 of B, one in each half h, as in Part 4.',
-    ij: 'Half h of As is rows 4h to 4h + 3; half h of Bs is columns 4h to 4h + 3. Warp w copies row w of each half, its 4 lanes side by side.',
-    ldA: 'Warp w copies rows w and w + 4 of the A tile: 4 neighbors each, one coalesced load per row.',
-    ldB: 'Warp w copies row w of the B tile: 8 neighbors, in two coalesced loads of 4.',
-    sync1: 'A barrier: no thread goes on until all 16 have reached it. Here it makes sure the tiles are complete, because each warp reads numbers other warps copied.<br>CUDA: <code>__syncthreads()</code>',
-    kloop: '4 steps per tile. Each one: 2 reads of As and 2 of Bs per thread, for 4 multiply-adds.',
-    a: 'One number of As for each row of sub-tiles: rows i0 and i0 + 2. A warp\'s 4 threads read 2 neighbors at once, each for 2 of them, and shared memory reads each once for both.<br>CUDA: <code>for (int m = 0; m &lt; 2; m++) a[m] = As[i0 + 2 * m][k];</code>',
-    b: 'One number of Bs for each column of sub-tiles: columns j0 and j0 + 2. A warp\'s 4 threads read 2 neighbors at once, each for 2 of them.<br>CUDA: <code>for (int n = 0; n &lt; 2; n++) b[n] = Bs[k][j0 + 2 * n];</code>',
-    mn: 'One sub-tile at a time: at (m, n), the warp\'s 4 threads fill sub-tile (m, n) of its square together. Each a meets each b, so each number read is used twice, as in Part 4.',
-    fma: 'acc[m][n] sits in sub-tile (m, n) of the warp\'s square, so it takes a[m], from its row of A, and b[n], from its column of B.',
-    sync2: 'Wait until every thread is done with this tile. Otherwise a fast warp could copy the next tile over numbers a slow warp still needs.',
+    hload: 'Each tile has 32 numbers for 16 threads, so each thread copies 2 of A and 2 of B, one in each half h.',
+    ij: 'Half h of As is rows 4h to 4h + 3; half h of Bs is columns 4h to 4h + 3. Each half is a 4 × 4 square, copied like Part 2\'s whole tile: one row per warp.',
+    ldA: 'Warp ty copies rows ty and ty + 4 of the A tile: 4 neighbors each, one coalesced load per row.',
+    ldB: 'Warp ty copies row ty of the B tile: 8 neighbors, in two coalesced loads of 4.',
+    sync1: 'A barrier: no thread goes on until all 16 have reached it. Here it makes sure the tiles are complete, because each thread reads numbers its neighbors copied.<br>CUDA: <code>__syncthreads()</code>',
+    kloop: '4 steps per tile. Each one: 2 reads of As and 2 of Bs, for 4 multiply-adds.',
+    a: 'One number of As for each row of this thread\'s square. All 4 threads of a warp read the same two, and shared memory serves each to all of them at once.<br>CUDA: <code>for (int m = 0; m &lt; 2; m++) a[m] = As[2 * ty + m][k];</code>',
+    b: 'One number of Bs for each column of this thread\'s square.<br>CUDA: <code>for (int n = 0; n &lt; 2; n++) b[n] = Bs[k][2 * tx + n];</code>',
+    mn: 'Every a with every b: 4 multiply-adds from the 4 numbers just read, each used twice. The 4 don\'t depend on each other, so none waits for another to finish.',
+    fma: 'acc[m][n] sits at row m, column n of this thread\'s square, so it takes a[m], from its row of A, and b[n], from its column of B.',
+    sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     st: 'Each thread writes its 4 finished sums to C, once.',
-    stij: 'Where acc[m][n] lies in the block: sub-tile (m, n) of the warp\'s square.',
-    st1: 'Each thread writes its 4 finished sums to C, once. A warp writes its square, one 2 × 2 sub-tile per write.',
-    meter: 'Every number shared memory reads for the followed threads. When threads of one warp read the same number at once, shared memory reads it once and broadcasts it. Per step, a warp here reads 4 numbers of As and 4 of Bs, a Part 4 warp 2 and 8, and one thread reads 4 in both. Whole kernel at N = 16: 2,048 against 2,560.',
+    st1: 'Each thread writes its 4 finished sums to C, once. A warp writes 2 rows of 8 neighbors.',
+    'meter-s': 'Every number the followed threads load from shared memory, against Parts 2 and 3 computing the same numbers of C. Per multiply-add, Part 2 loads 2, Part 3 1.5, this kernel 1. Whole kernel at N = 16: 4,096 against 6,144 and 8,192.',
+    'meter-g': 'Every number the followed threads copy from global memory. A 4 × 4 block copies 32 per tile for 16 numbers of C; an 8 × 8 block copies 64 for 64, half as many per number. Whole kernel at N = 16: 1,024 against 2,048.',
     'sync-1': '<b>sync()</b><br>Wait until all 16 threads have copied their numbers.',
     'sync-2': '<b>sync()</b><br>Wait until all 16 threads are done with this tile before the next one overwrites it.',
   };
   function stepTip(p) {
     const s = STEPS[p];
-    if (s.kind === 'setup') return '<b>Setup</b><br>The block sets aside shared memory for As and Bs, and each thread works out its warp, its warp\'s square of C and its place in it, and zeroes its 4 sums.';
+    if (s.kind === 'setup') return '<b>Setup</b><br>The block sets aside shared memory for As and Bs, and each thread works out its square of C and zeroes its 4 sums.';
     if (s.kind === 'load') return `<b>Load tile ${s.t}</b><br>Copy an 8 × 4 tile of A and a 4 × 8 tile of B from global memory into shared memory, 2 numbers of each per thread.`;
-    if (s.kind === 'fma') return `<b>Tile ${s.t}, k = ${s.k}</b><br>Each thread reads 2 numbers of As into a and 2 of Bs into b, then each warp fills its 4 sub-tiles (overall k = ${s.kg}).`;
+    if (s.kind === 'fma') return `<b>Tile ${s.t}, k = ${s.k}</b><br>Each thread reads 2 numbers of As into a and 2 of Bs into b, then does 4 multiply-adds (overall k = ${s.kg}).`;
     return '<b>Store</b><br>Each thread writes its 4 sums to C.';
   }
-  // hovering a number rings the sums that use it, and the thread that copies it with dashed rings
-  const list = (xs) => (xs.length < 2 ? `${xs[0]}` : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  // hovering a number rings the threads that read it, and the thread that copies it with a dashed ring
   function cellTip(g) {
     const kind = g.dataset.kind, i = +g.dataset.i, j = +g.dataset.j, r0 = R0(), c0 = C0();
     const { tile, kDone } = progress(pos);
     const marks = [], srcs = [];
-    let rectsG = null, rectsS = null;
-    // row n of As feeds row n of the block's sums, as a[m] of the threads computing it; column n of Bs feeds column n, as b[n]
-    const readersOf = (isA, n) => {
-      const ts = Array.from({ length: NT }, (_, t) => t).filter((t) => (isA ? rowsOf(t) : colsOf(t)).includes(n));
-      const ws = [...new Set(ts.map(warpOf))].map((w) => warpNo(anchor.bx, anchor.by, w));
-      const q = (isA ? rowsOf : colsOf)(ts[0]).indexOf(n);
-      return `threads ${list(ts)} of warps ${list(ws)}, as ${isA ? `a[${q}]` : `b[${q}]`}`;
+    let outline = null;
+    // row i of As is a[i mod TM] for the threads in thread row i ÷ TM; column j of Bs is b[j mod TN] for the threads in thread column j ÷ TN
+    const readers = (isA, n) => {
+      if (isA) marks.push(...TH[Math.floor(n / TM)]);
+      else for (let y = 0; y < TY; y++) marks.push(TH[y][Math.floor(n / TN)]);
     };
-    const readers = (isA, n) => marks.push(...(isA ? ACC[n] : ACC.map((row) => row[n])));
+    const readersOf = (isA, n) => (isA
+      ? `the ${TX} threads of warp ${warpNo(anchor.bx, anchor.by, Math.floor(n / TM))}, as a[${n % TM}]`
+      : `the ${TY} threads in column ${Math.floor(n / TN)} of the block, as b[${n % TN}]`);
     let html;
     if (kind === 'a' || kind === 'b') {
       const isA = kind === 'a', name = `${isA ? 'A' : 'B'}[${i}][${j}]`, wrap = isA ? vA : vB;
@@ -944,41 +917,38 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
       if (isA ? si < 0 || si >= BM : sj < 0 || sj >= BN) {
         html = `<b>${wrap(name)}</b><br>${cap(blockName())} never needs this ${isA ? 'row' : 'column'}. Other blocks do.`;
       } else {
-        const cp = (isA ? copierA : copierB)(si, sj), sh = `${isA ? 'As' : 'Bs'}[${si}][${sj}]`;
-        html = `<b>${wrap(name)}</b> · tile ${t}<br>Needed by ${readersOf(isA, isA ? si : sj)}. Thread ${cp} copies it into ${wrap(sh)}, once.`;
+        const [cx, cy] = (isA ? copierA : copierB)(si, sj), sh = `${isA ? 'As' : 'Bs'}[${si}][${sj}]`;
+        html = `<b>${wrap(name)}</b> · tile ${t}<br>Needed by ${readersOf(isA, isA ? si : sj)}. Thread (${cx}, ${cy}) copies it into ${wrap(sh)}, once.`;
         readers(isA, isA ? si : sj);
-        srcs.push(...cellsOf(cp));
+        srcs.push(TH[cy][cx]);
         if (tile === t) marks.push((isA ? SA : SB)[si][sj]);
       }
     } else if (kind === 'as' || kind === 'bs') {
-      const isA = kind === 'as', name = `${isA ? 'As' : 'Bs'}[${i}][${j}]`, wrap = isA ? vA : vB, cp = (isA ? copierA : copierB)(i, j);
-      srcs.push(...cellsOf(cp));
+      const isA = kind === 'as', name = `${isA ? 'As' : 'Bs'}[${i}][${j}]`, wrap = isA ? vA : vB, [cx, cy] = (isA ? copierA : copierB)(i, j);
+      srcs.push(TH[cy][cx]);
       if (tile < 0) {
-        html = `<b>${wrap(name)}</b><br>Empty until the first tile arrives. Thread ${cp} will fill it.`;
+        html = `<b>${wrap(name)}</b><br>Empty until the first tile arrives. Thread (${cx}, ${cy}) will fill it.`;
       } else {
         const src = isA ? [r0 + i, tile * BK + j] : [tile * BK + i, c0 + j];
-        html = `<b>${wrap(name)}</b> holds ${wrap(`${isA ? 'A' : 'B'}[${src[0]}][${src[1]}]`)}<br>Copied by thread ${cp}. ` +
+        html = `<b>${wrap(name)}</b> holds ${wrap(`${isA ? 'A' : 'B'}[${src[0]}][${src[1]}]`)}<br>Copied by thread (${cx}, ${cy}). ` +
           `Read at k = ${isA ? j : i} by ${readersOf(isA, isA ? i : j)}.`;
         marks.push((isA ? PA : PB)[src[0]][src[1]]);
         readers(isA, isA ? i : j);
       }
-    } else if (kind === 'acc') {
-      const { t, m, n } = g.own, p = place(t), [i0, i1] = rowsOf(t), [j0, j1] = colsOf(t);
-      html = `<b>Thread ${t}</b> · lane ${p.l} of warp ${warpNo(anchor.bx, anchor.by, p.w)}<br>acc[${m}][${n}] is ${vC(`C[${r0 + i}][${c0 + j}]`)}, in sub-tile (${m}, ${n}) of its warp's square. ` +
-        `The thread computes ${vC('C')} in rows ${r0 + i0} and ${r0 + i1} and columns ${c0 + j0} and ${c0 + j1}, from rows ${i0} and ${i1} of ${vA('As')} and columns ${j0} and ${j1} of ${vB('Bs')}. ` +
+    } else if (kind === 'th') {
+      const tx = j, ty = i, [i0, i1] = rowsOf(ty), [j0, j1] = colsOf(tx), r = r0 + i0, c = c0 + j0;
+      html = `<b>Thread (${tx}, ${ty})</b> · warp ${warpNo(anchor.bx, anchor.by, ty)}<br>Computes ${vC(`C[${r}..${r + 1}][${c}..${c + 1}]`)} from rows ${i0} and ${i1} of ${vA('As')} and columns ${j0} and ${j1} of ${vB('Bs')}. ` +
         `Each sum has ${kDone} of ${N} products so far.<br>Click to follow it.`;
-      rectsS = groupRects(level, t);
-      if (level !== 'block') {                     // the numbers of As and Bs the hovered group reads
-        const ts = level === 'warp' ? Array.from({ length: WS }, (_, l) => p.w * WS + l) : [t];
-        const rs = new Set(ts.flatMap(rowsOf)), cs = new Set(ts.flatMap(colsOf));
-        for (let k = 0; k < BK; k++) { rs.forEach((r) => marks.push(SA[r][k])); cs.forEach((c) => marks.push(SB[k][c])); }
-      }
+      for (let k = 0; k < BK; k++) marks.push(SA[i0][k], SA[i1][k], SB[k][j0], SB[k][j1]);
     } else {
-      const bx = Math.floor(j / BN), by = Math.floor(i / BM), { t, m, n } = owner(i % BM, j % BN), p = place(t);
-      html = `<b>${vC(`C[${i}][${j}]`)}</b><br>acc[${m}][${n}] of thread ${t} of block (${bx}, ${by}), lane ${p.l} of warp ${warpNo(bx, by, p.w)}.<br>Click to follow it.`;
-      rectsG = shift(groupRects(level, t), by * BM, bx * BN);
+      const bx = Math.floor(j / BN), by = Math.floor(i / BM), tx = Math.floor((j % BN) / TN), ty = Math.floor((i % BM) / TM);
+      html = `<b>${vC(`C[${i}][${j}]`)}</b><br>acc[${i % TM}][${j % TN}] of thread (${tx}, ${ty}) of block (${bx}, ${by}), warp ${warpNo(bx, by, ty)}.<br>Click to follow it.`;
+      const bi = by * BM, bj = bx * BN, ri = bi + TM * ty, cj = bj + TN * tx;
+      outline = level === 'thread' ? [[ri, cj], [ri + TM - 1, cj + TN - 1]]
+        : level === 'warp' ? [[ri, bj], [ri + TM - 1, bj + BN - 1]]
+        : [[bi, bj], [bi + BM - 1, bj + BN - 1]];
     }
-    return { html, marks, srcs, rectsG, rectsS };
+    return { html, marks, srcs, outline };
   }
 
   const tip = $('#tip');
@@ -987,19 +957,21 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     tipMarks.forEach((m) => m.classList.remove('hl'));
     tipSrcs.forEach((m) => m.classList.remove('hl-src'));
     tipMarks = []; tipSrcs = [];
-    outline(hoverG, [], 'grp-mark');
-    outline(hoverS, [], 'grp-mark');
+    hoverG.setAttribute('visibility', 'hidden');
     tipNode = node;
     if (!node) { tip.hidden = true; return; }
-    let html, rectsG, rectsS;
-    if (node.dataset.kind) ({ html, marks: tipMarks, srcs: tipSrcs, rectsG, rectsS } = cellTip(node));
+    let html, outline;
+    if (node.dataset.kind) ({ html, marks: tipMarks, srcs: tipSrcs, outline } = cellTip(node));
     else if (node.dataset.pos != null) html = stepTip(+node.dataset.pos);
     else html = TIPS[node.dataset.tip || node.dataset.id];
     if (!html) { tip.hidden = true; return; }
     tipMarks.forEach((m) => m.classList.add('hl'));
     tipSrcs.forEach((m) => m.classList.add('hl-src'));
-    if (rectsG) outline(hoverG, rectsG.map((r) => box(GL.C, GL.cell, r, 0.5)), `grp-mark ${level}`);
-    if (rectsS) outline(hoverS, rectsS.map((r) => box(SH.T, SH.cell, r, level === 'block' ? -3 : 1)), `grp-mark ${level}`);
+    if (outline) {
+      setBox(hoverG, box(GL.C, GL.cell, outline, 0.5));
+      hoverG.setAttribute('class', `grp-mark ${level}`);
+      hoverG.setAttribute('visibility', 'visible');
+    }
     tip.innerHTML = html;
     tip.hidden = false;
     const rc = node.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
@@ -1022,7 +994,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   const nextBtn = fig.querySelector('[data-act=next]');
   const ICON_PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>';
   const ICON_PAUSE = '<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>';
-  const DWELL = { setup: 1600, load: 2900, fma: 2000, store: 2200 };
+  const DWELL = { setup: 1600, load: 2900, fma: 1800, store: 2200 };
   let pos = 0, timer = null;
 
   function sync() {
@@ -1051,11 +1023,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   }
   document.querySelectorAll('#seg-level button').forEach((b) => b.addEventListener('click', () => { setLevel(b.dataset.level); go(pos, false); }));
   svg.addEventListener('click', (e) => {
-    const g = e.target.closest('.cell.c, .cell.acc');
+    const g = e.target.closest('.cell.c, .cell.th');
     if (!g) return;
     const i = +g.dataset.i, j = +g.dataset.j;
-    if (g.dataset.kind === 'acc') follow({ t: g.own.t });
-    else follow({ bx: Math.floor(j / BN), by: Math.floor(i / BM), t: owner(i % BM, j % BN).t });
+    if (g.dataset.kind === 'th') follow({ tx: j, ty: i });
+    else follow({ bx: Math.floor(j / BN), by: Math.floor(i / BM), tx: Math.floor((j % BN) / TN), ty: Math.floor((i % BM) / TM) });
   });
   // arrows step from anywhere on the page, except while typing or with modifiers held
   document.addEventListener('keydown', (e) => {

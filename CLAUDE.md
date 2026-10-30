@@ -8,11 +8,11 @@ Self-contained interactive HTML pages (no build step) teaching matrix multiply f
 
 ## CUDA
 
-- `cutlass-visualization-v2-naive.html` (Part 1)
-- `cutlass-visualization-v2-shared-memory-tiling.html` (Part 2)
-- `cutlass-visualization-v2-1d-block-tiling.html` (Part 3)
-- `cutlass-visualization-v2-2d-block-tiling.html` (Part 4)
-- `cutlass-visualization-v2-warp-tiling.html` (Part 5, the last)
+- `cuda-naive.html` (Part 1)
+- `cuda-shared-memory-tiling.html` (Part 2)
+- `cuda-1d-block-tiling.html` (Part 3)
+- `cuda-2d-block-tiling.html` (Part 4)
+- `cuda-warp-tiling.html` (Part 5, the last)
 
 ## Decisions
 
