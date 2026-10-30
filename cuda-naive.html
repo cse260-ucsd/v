@@ -238,9 +238,19 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 .track i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--line-strong); transition: width 0.4s; }
 .m-row.now .track i { background: var(--ink); }
 
-.pager { margin-bottom: 32px; display: flex; justify-content: space-between; gap: 16px; font-weight: 600; }
+.pager { margin-bottom: 32px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; font-weight: 600; }
+.pager > :last-child { justify-self: end; text-align: right; }
 .pager a { text-decoration: none; }
 .pager a:hover { text-decoration: underline; }
+.tools { display: flex; align-items: center; gap: 8px; }
+.tools svg { width: 16px; height: 16px; fill: currentColor; }
+.tools .btn.icon { width: 36px; height: 36px; }
+.tools .seg { flex-wrap: nowrap; }
+.tools .seg button { width: 30px; height: 28px; padding: 0; display: grid; place-items: center; }
+@media (max-width: 600px) {
+  .pager { grid-template-columns: 1fr 1fr; }
+  .tools { grid-row: 2; grid-column: 1 / -1; justify-self: center; }
+}
 
 /* notes under the figure: how a real implementation differs from the picture */
 .notes { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 0.95rem; }
@@ -254,12 +264,21 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 </style>
+<script>try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 <main class="page">
 
   <nav class="pager">
     <span></span>
+    <div class="tools">
+      <a class="btn icon" href="cuda-naive.html" download aria-label="Download this page" title="Download this page"><svg viewBox="0 0 16 16"><path d="M7.25 1.5h1.5v6.69l2.22-2.22 1.06 1.06L8 11.06 3.97 7.03l1.06-1.06 2.22 2.22zM2.5 12.5h11V14h-11z"/></svg></a>
+      <div class="seg" id="seg-theme" role="radiogroup" aria-label="Color theme">
+        <button role="radio" data-set="light" aria-label="Light" title="Light"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M7.25.75h1.5v2.5h-1.5zM7.25 12.75h1.5v2.5h-1.5z"/><path d="M7.25.75h1.5v2.5h-1.5zM7.25 12.75h1.5v2.5h-1.5z" transform="rotate(45 8 8)"/><path d="M7.25.75h1.5v2.5h-1.5zM7.25 12.75h1.5v2.5h-1.5z" transform="rotate(90 8 8)"/><path d="M7.25.75h1.5v2.5h-1.5zM7.25 12.75h1.5v2.5h-1.5z" transform="rotate(135 8 8)"/></svg></button>
+        <button role="radio" data-set="dark" aria-label="Dark" title="Dark"><svg viewBox="0 0 16 16"><path d="M14 8.53A6 6 0 1 1 7.47 2a4.67 4.67 0 0 0 6.53 6.53z"/></svg></button>
+        <button role="radio" data-set="auto" aria-label="Auto (match system)" title="Auto (match system)"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM8 3a5 5 0 0 1 0 10z"/></svg></button>
+      </div>
+    </div>
     <a href="cuda-shared-memory-tiling.html">Part 2: Shared memory tiling →</a>
   </nav>
 
@@ -855,6 +874,21 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
   setMode('row');
   setLevel('warp');
   go(0, false);
+})();
+</script>
+<script>
+// theme switch: light / dark set data-theme on <html>; auto removes it and follows the system
+(() => {
+  const root = document.documentElement;
+  const btns = document.querySelectorAll('#seg-theme button');
+  const show = () => btns.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.set === (root.dataset.theme || 'auto'))));
+  btns.forEach((b) => b.addEventListener('click', () => {
+    const t = b.dataset.set;
+    if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+    try { if (t === 'auto') localStorage.removeItem('theme'); else localStorage.setItem('theme', t); } catch (e) {}
+    show();
+  }));
+  show();
 })();
 </script>
 </body>
