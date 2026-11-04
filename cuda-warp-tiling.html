@@ -1044,7 +1044,7 @@ svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12
       w = h = gx * p - 2;
       for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++)
         pic += `<rect class="gb${x === anchor.bx && y === anchor.by ? ' on' : ''}" x="${x * p + 1}" y="${y * p + 1}" width="${p - 4}" height="${p - 4}" rx="3"/>`;
-      k = `gridDim = (${gx}, ${gy})`; s = `${gx * gy} blocks`;
+      k = `gridDim = (${gx}, ${gy})`; s = `${gx} × ${gy} = ${gx * gy} blocks`;
     } else {                                          // threads by threadIdx, warps as pills of consecutive threads
       w = dx * 10 + 6; h = dy * 10 + 6;
       pic = `<rect class="bk" x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="4"/>`;
@@ -1054,7 +1054,8 @@ svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12
         const on = lv === 'thread' && t === id;
         pic += `<circle class="th${on ? ' on' : ''}" cx="${8 + (t % dx) * 10}" cy="${7.5 + Math.floor(t / dx) * 10}" r="${on ? 3.4 : 2.6}"/>`;
       }
-      k = `blockDim = (${dx}, ${dy})`; s = `${(dx * dy) / ws} warps of ${ws} threads`;
+      k = `blockDim = (${dx}, ${dy})`;
+      s = lv === 'thread' ? `${dx} × ${dy} = ${dx * dy} threads` : `${dx * dy} threads / ${ws} = ${(dx * dy) / ws} warps`;
     }
     return `${head}<div class="dims"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${pic}</svg><div><span class="k">${k}</span><br>${s}</div></div>`;
   }
