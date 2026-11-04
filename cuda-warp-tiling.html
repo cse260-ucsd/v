@@ -299,7 +299,18 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
 
 /* note 1: a warp tile sized for a T4, 2 × 2 sub-tiles of 4 × 8 lanes, each lane a 4 × 4 piece; As down the left, Bs across the top */
-svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12px 0 4px; touch-action: manipulation; }
+.wt-fig { display: grid; grid-template-columns: minmax(0, 440px) max-content; align-items: center; gap: 14px 24px; margin: 12px 0 4px; }
+@media (max-width: 600px) { .wt-fig { grid-template-columns: minmax(0, 1fr); } }
+svg.wt { display: block; width: 100%; height: auto; touch-action: manipulation; }
+.wt-key { display: grid; gap: 14px; font-size: 0.82rem; line-height: 1.35; color: var(--muted); }
+.wt-key > div { display: flex; align-items: center; gap: 10px; }
+.wt-key svg { flex: none; width: 48px; height: 28px; }
+.wt-key b { font: 700 0.8rem var(--font-mono); color: var(--ink); }
+.wt-key .tile-fr { stroke-dasharray: 3 2; }
+.wt-key .kc { fill: color-mix(in srgb, var(--c) 25%, var(--surface)); }
+.wt-key .kc.on, .wt-key .kp { fill: var(--c); }
+.wt-key .kp { fill: var(--c-2); stroke: var(--c); stroke-width: 1.5; }
+.wt-key .kg { fill: none; stroke: var(--c); stroke-opacity: 0.6; stroke-width: 0.75; }
 .wt .pc { cursor: pointer; }
 .wt .pc .hit { fill: transparent; }
 .wt .pc .bg { fill: var(--surface); stroke: color-mix(in srgb, var(--c) 55%, var(--surface)); }
@@ -317,6 +328,8 @@ svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12
 .wt .dim.a { fill: var(--a-ink); }
 .wt .dim.b { fill: var(--b-ink); }
 .mk { background: var(--c-2); box-shadow: inset 0 0 0 1.5px var(--c); border-radius: 4px; padding: 0 0.3em; }
+.mk-w { box-shadow: inset 0 0 0 2px var(--line-strong); border-radius: 5px; padding: 0 0.3em; }
+.mk-s { border: 1.5px dashed var(--line-strong); border-radius: 4px; padding: 0 0.25em; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -413,8 +426,15 @@ svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Tile sizes.</b> With a Tesla T4's 32-thread warps, a warp tile might be 32 × 64 numbers of <span class="vC">C</span>, as below: 4 sub-tiles, each with one 4 × 4 piece per thread, so <span class="mk" id="wt-t">thread 9</span> keeps 64 sums. All three sizes are parameters to tune. Per step of k, a WM × WN warp tile reads WM numbers of <span class="vA">As</span> and WN of <span class="vB">Bs</span> for WM · WN multiply-adds, which is why CUTLASS recommends a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">large warp tile</a>. Time a few combinations on the T4 to find the fastest.
-        <svg class="wt" id="wt" role="img" aria-label="A 32 by 64 warp tile of C in 2 by 2 sub-tiles. Each sub-tile holds 4 by 8 pieces of 4 by 4 numbers, each labeled with the thread, 0 to 31, that computes it. Down the left runs the column of 32 numbers of As the warp reads at one step of k, across the top the row of 64 numbers of Bs."></svg>
+      <li><b>Tile sizes.</b> With a Tesla T4's 32-thread warps, a <span class="mk-w">warp tile</span> might be 32 × 64 numbers of <span class="vC">C</span>, as below: 4 <span class="mk-s">sub-tiles</span>, each with one 4 × 4 piece per thread, so <span class="mk" id="wt-t">thread 9</span> keeps 64 sums. All three sizes are parameters to tune. Per step of k, a WM × WN warp tile reads WM numbers of <span class="vA">As</span> and WN of <span class="vB">Bs</span> for WM · WN multiply-adds, which is why CUTLASS recommends a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">large warp tile</a>. Time a few combinations on the T4 to find the fastest.
+        <div class="wt-fig">
+          <svg class="wt" id="wt" role="img" aria-label="A 32 by 64 warp tile of C, framed solid, in 2 by 2 sub-tiles, framed dashed. Each sub-tile holds 4 by 8 pieces of 4 by 4 numbers, each labeled with the thread, 0 to 31, that computes it. Down the left runs the column of 32 numbers of As the warp reads at one step of k, across the top the row of 64 numbers of Bs."></svg>
+          <div class="wt-key">
+            <div><svg viewBox="0 0 48 28" aria-hidden="true"><rect class="warp-fr" x="1" y="1" width="46" height="26" rx="4"/><rect class="tile-fr" x="4.5" y="4.5" width="18.5" height="8.5" rx="2"/><rect class="tile-fr" x="25" y="4.5" width="18.5" height="8.5" rx="2"/><rect class="tile-fr" x="4.5" y="15" width="18.5" height="8.5" rx="2"/><rect class="tile-fr" x="25" y="15" width="18.5" height="8.5" rx="2"/></svg><span><b>warp tile</b><br>WM × WN = 32 × 64</span></div>
+            <div><svg viewBox="0 0 48 28" aria-hidden="true"><rect class="tile-fr" x="1" y="1" width="46" height="26" rx="3"/><rect class="kc" x="4.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="9.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="14.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="19.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="24.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="29.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="34.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="39.5" y="4.5" width="4" height="4" rx="1"/><rect class="kc" x="4.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc on" x="9.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="14.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="19.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="24.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="29.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="34.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="39.5" y="9.5" width="4" height="4" rx="1"/><rect class="kc" x="4.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="9.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="14.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="19.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="24.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="29.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="34.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="39.5" y="14.5" width="4" height="4" rx="1"/><rect class="kc" x="4.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="9.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="14.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="19.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="24.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="29.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="34.5" y="19.5" width="4" height="4" rx="1"/><rect class="kc" x="39.5" y="19.5" width="4" height="4" rx="1"/></svg><span><b>sub-tile</b><br>4 × 8 threads</span></div>
+            <div><svg viewBox="0 0 48 28" aria-hidden="true"><rect class="kp" x="12" y="2" width="24" height="24" rx="3"/><path class="kg" d="M18 3v22M24 3v22M30 3v22M13 8h22M13 14h22M13 20h22"/></svg><span><b>piece</b><br>4 × 4 numbers, one thread</span></div>
+          </div>
+        </div>
       </li>
       <li><b>Banks.</b> In Part 4, a 32-thread warp along a row of the block reads <span class="vB">Bs</span> two numbers apart, two threads to a bank. Here a warp's reads ask for a few neighbors each. With note 1's 4 × 8 threads per sub-tile but one number each, a read of <span class="vB">b</span> takes 8 neighbors from a row of <span class="vB">Bs</span>, each in its own <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">bank</a> and broadcast to 4 threads. A read of <span class="vA">a</span> takes 4 neighbors from a column of <span class="vA">As</span>, a row (BK numbers) apart, so they share banks once BK reaches 16. Storing <span class="vA">As</span> transposed, k along its rows, puts them side by side in memory too.</li>
       <li><b>Vectorized loads.</b> A <code>float4</code> is 4 neighboring floats, 16 bytes, loaded or stored with one instruction instead of 4 (<a href="https://godbolt.org/z/doP46frqe">compare the two</a>). Real kernels copy tiles this way, 4 neighbors of a row of <span class="vA">A</span> or <span class="vB">B</span> per thread, and read <span class="vA">a</span> and <span class="vB">b</span> 4 at a time for each 4 × 4 piece, which needs <span class="vA">As</span> transposed (note 2). A quarter of the instructions move the same bytes, leaving the warp schedulers more turns for multiply-adds. A <code>float4</code> must start at a <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#vector-types-alignment-requirements-in-device-code">multiple of 16 bytes</a>, so N must be a multiple of 4.</li>
