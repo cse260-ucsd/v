@@ -376,9 +376,9 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Strip length.</b> The number of sums per thread is a parameter to tune. With TM numbers of a column of <span class="vC">C</span> per thread, each number read from <span class="vB">Bs</span> feeds TM multiply-adds: TM + 1 reads of shared memory for TM multiply-adds, against 2 · TM in Part 2. Longer strips need more registers (below), so time a few lengths on the Tesla T4 to find the fastest.</li>
-      <li><b>Registers.</b> Every sum takes a register, and the threads on an SM (streaming multiprocessor) share its registers. A Tesla T4 SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#occupancy">65,536</a>: 64 per thread when all 1,024 threads it can hold are there. Threads that need more fit fewer per SM, which leaves <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps</a> to switch to while one waits for memory. Independent multiply-adds within each thread make up for some of that: the two here don't wait for each other.</li>
-      <li><b>Arrays in registers.</b> <code>acc[0..1]</code> stays in registers only because every index into it is a constant. When the compiler can't tell that, the array goes to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#local-memory">local memory</a>, which sits in global memory and is just as slow. Real kernels loop over the strip with <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#pragma-unroll"><code>#pragma unroll</code></a>, which turns every index into a constant.</li>
+      <li><b>Strip length.</b> The strip length TM is a parameter to tune. Each number read from <span class="vB">Bs</span> feeds TM multiply-adds: TM + 1 reads of shared memory for TM multiply-adds, against 2 · TM in Part 2. Longer strips need more registers (below), so time a few lengths on the Tesla T4.</li>
+      <li><b>Registers.</b> Every sum takes a register, and the threads on an SM (streaming multiprocessor) share its registers: <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#occupancy">65,536</a> on a Tesla T4, 64 per thread when all 1,024 threads it can hold are there. Threads that need more fit fewer per SM, leaving <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps</a> to switch to while one waits for memory. Independent multiply-adds within a thread make up for some of that: the two here don't wait for each other.</li>
+      <li><b>Arrays in registers.</b> <code>acc[0..1]</code> stays in registers only because every index into it is a constant. Otherwise the array goes to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#local-memory">local memory</a>, which sits in global memory and is just as slow. Real kernels loop over the strip with <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#pragma-unroll"><code>#pragma unroll</code></a>, which turns every index into a constant.</li>
     </ol>
   </section>
 
@@ -836,11 +836,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    tiling: 'Each thread computes a strip of C: here 2 numbers in one column. Real kernels tune the length for their GPU. 1D because the strip is a line. 2D block tiling gives each thread a small square instead.',
+    tiling: 'Each thread computes a strip of C, here 2 numbers of a column: 1D because the strip is a line. Part 4 gives each thread a square instead.',
     reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 8 threads, each with registers for acc[0], acc[1] and b. The other 15 blocks do the same at the same time.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 4 × 4 blocks of 4 × 2 threads.',
+    head: 'Every thread of every block runs this at once, on a grid of 4 × 4 blocks of 4 × 2 threads.',
     shared: 'The same tiles as Part 2: 4 × 4 numbers each, seen by all 8 threads of the block.<br>CUDA: <code>__shared__ float As[4][4];</code>',
     tid: 'This thread\'s place in its block: tx from 0 to 3, ty from 0 to 1. The block is 4 × 2 threads.',
     r: 'The first row of C this block covers. Thread row ty computes rows 2ty and 2ty + 1 of the block.',
@@ -855,7 +855,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     kloop: '4 steps per tile. Each one: 1 read of Bs and 2 of As, for 2 multiply-adds.',
     b: 'Both of this thread\'s sums need Bs[k][tx]. Read it from shared memory once, into register b.',
     fma0: 'The first sum takes one number of As, read from shared memory, and b, already in a register.',
-    fma1: 'The second sum takes the next number of As and the same b: 3 shared memory reads for 2 multiply-adds, against 4 in Part 2. The two don\'t depend on each other, so the second need not wait for the first to finish.',
+    fma1: 'The second sum takes the next number of As and the same b: 3 shared memory reads for 2 multiply-adds, against 4 in Part 2. The two are independent, so the second need not wait for the first.',
     sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     st0: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',
     st1: 'Each thread writes its 2 finished sums to C, once. A warp writes 4 neighbors per line: one coalesced store each.',

@@ -289,6 +289,26 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .notes li { max-width: 68ch; margin-bottom: 0.8em; padding-left: 0.2em; }
 .notes li::marker { font: 700 0.85em var(--font-mono); color: var(--muted); }
 
+/* note 1: a warp tile sized for a T4, 2 × 2 sub-tiles of 4 × 8 lanes, each lane a 4 × 4 piece; As down the left, Bs across the top */
+svg.wt { display: block; width: 100%; max-width: 440px; height: auto; margin: 12px 0 4px; touch-action: manipulation; }
+.wt .pc { cursor: pointer; }
+.wt .pc .hit { fill: transparent; }
+.wt .pc .bg { fill: var(--surface); stroke: color-mix(in srgb, var(--c) 55%, var(--surface)); }
+.wt .pc.on .bg { fill: var(--c-2); stroke: var(--c); stroke-width: 1.5; }
+.wt .pc .grid { fill: none; stroke: var(--c); stroke-width: 0.75; stroke-opacity: 0.6; }
+.wt .pc:not(.on) .grid { visibility: hidden; }
+.wt .pc .grid, .wt .lane { pointer-events: none; }
+.wt .lane { font: 600 11px var(--font-mono); fill: var(--muted); text-anchor: middle; dominant-baseline: central; }
+.wt .pc.on .lane { fill: var(--ink); font-weight: 700; paint-order: stroke; stroke: var(--c-2); stroke-width: 3px; }
+.wt .sa { fill: var(--a-1); stroke: var(--bg); }
+.wt .sb { fill: var(--b-1); stroke: var(--bg); }
+.wt .sa.on { fill: var(--a); }
+.wt .sb.on { fill: var(--b); }
+.wt .dim { font: 600 11px var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+.wt .dim.a { fill: var(--a-ink); }
+.wt .dim.b { fill: var(--b-ink); }
+.mk { background: var(--c-2); box-shadow: inset 0 0 0 1.5px var(--c); border-radius: 4px; padding: 0 0.3em; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
@@ -314,9 +334,9 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <header class="prose">
     <h1>Warp tiling</h1>
     <p class="lede">
-      <span class="term" data-tip="warptile">Warp tiling</span> gives each warp of a block its own 4 × 4 square of <span class="vC">C</span>, where Part 4's warps each took a 2 × 8 strip.
-      Each thread keeps one sum in each 2 × 2 <span class="term" data-tip="subtile">sub-tile</span> of its warp's square, so the warp's 4 threads fill one sub-tile together, from 2 neighboring numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span>.
-      Threads read and compute as much as in Part 4, but at every step a warp needs 4 numbers of <span class="vA">As</span> and 4 of <span class="vB">Bs</span>, where Part 4's needed 2 and 8.
+      <span class="term" data-tip="warptile">Warp tiling</span> gives each warp its own 4 × 4 square of <span class="vC">C</span>, where Part 4's warps each took a 2 × 8 strip.
+      Each thread keeps one sum in each 2 × 2 <span class="term" data-tip="subtile">sub-tile</span> of the square, so the warp's 4 threads fill a sub-tile together from 2 neighboring numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span>.
+      Threads read and compute as much as in Part 4, but each step a warp needs 4 numbers of <span class="vA">As</span> and 4 of <span class="vB">Bs</span>, not 2 and 8.
     </p>
   </header>
 
@@ -384,10 +404,12 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Tile sizes.</b> The warp tile, its sub-tiles and each thread's piece of a sub-tile, 1 number here, are all parameters to tune. A WM × WN warp tile needs WM + WN numbers of <span class="vA">As</span> and <span class="vB">Bs</span> per step of k for WM · WN multiply-adds, which is why CUTLASS recommends a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">large warp tile</a>. A Tesla T4 warp has 32 threads, so a 32 × 64 warp tile gives each thread 64 sums, for instance a 4 × 4 piece of each of 4 sub-tiles. Time a few combinations on the T4 to find the fastest.</li>
-      <li><b>Banks.</b> In Part 4, a warp of 32 threads along a row of the block reads <span class="vB">Bs</span> two numbers apart, two threads to a bank. Here every read of a warp asks for a few neighbors. With 32 threads as 4 × 8 in each sub-tile and one number each, a read of <span class="vB">b</span> takes 8 neighbors from a row of <span class="vB">Bs</span>, each in its own <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">bank</a> and broadcast to 4 threads. A read of <span class="vA">a</span> takes 4 neighbors from a column of <span class="vA">As</span>, which lie a row of <span class="vA">As</span>, BK numbers, apart, so they share banks once BK reaches 16. Storing <span class="vA">As</span> transposed, with k along its rows, puts them side by side in memory too.</li>
-      <li><b>Vectorized loads.</b> A <code>float4</code> is 4 neighboring floats, 16 bytes, which a thread loads or stores with one instruction instead of 4 (<a href="https://godbolt.org/z/doP46frqe">compare the two</a>). Real kernels copy tiles this way, 4 neighbors of a row of <span class="vA">A</span> or <span class="vB">B</span> per thread, and read <span class="vA">a</span> and <span class="vB">b</span> 4 at a time from each 4 × 4 piece of note 1, which needs <span class="vA">As</span> transposed (note 2). The same bytes move with a quarter of the instructions, leaving the warp schedulers more turns for multiply-adds. A <code>float4</code> must start at a <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#vector-types-alignment-requirements-in-device-code">multiple of 16 bytes</a>, so N must be a multiple of 4.</li>
-      <li><b>Software pipelining.</b> As Part 2's notes describe, CUTLASS keeps two tiles of <span class="vA">As</span> and <span class="vB">Bs</span> in shared memory, so the copy of the next tile overlaps the math on this one. It also <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">double-buffers registers</a>: a thread reads the next step's <span class="vA">a</span> and <span class="vB">b</span> from shared memory while it multiplies this step's. Copying straight from global to shared memory, without registers, needs <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html#advanced-kernels-async-copies">compute capability 8.0</a>, and the T4 is <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html">7.5</a>. So each thread loads its numbers of the next tile into registers before this tile's multiply-adds and stores them into the other buffer after them: the loads finish while the multiply-adds run.</li>
+      <li><b>Tile sizes.</b> With a Tesla T4's 32-thread warps, a warp tile might be 32 × 64 numbers of <span class="vC">C</span>, as below: 4 sub-tiles, each with one 4 × 4 piece per thread, so <span class="mk" id="wt-t">thread 9</span> keeps 64 sums. All three sizes are parameters to tune. Per step of k, a WM × WN warp tile reads WM numbers of <span class="vA">As</span> and WN of <span class="vB">Bs</span> for WM · WN multiply-adds, which is why CUTLASS recommends a <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">large warp tile</a>. Time a few combinations on the T4 to find the fastest.
+        <svg class="wt" id="wt" role="img" aria-label="A 32 by 64 warp tile of C in 2 by 2 sub-tiles. Each sub-tile holds 4 by 8 pieces of 4 by 4 numbers, each labeled with the thread, 0 to 31, that computes it. Down the left runs the column of 32 numbers of As the warp reads at one step of k, across the top the row of 64 numbers of Bs."></svg>
+      </li>
+      <li><b>Banks.</b> In Part 4, a 32-thread warp along a row of the block reads <span class="vB">Bs</span> two numbers apart, two threads to a bank. Here a warp's reads ask for a few neighbors each. With note 1's 4 × 8 threads per sub-tile but one number each, a read of <span class="vB">b</span> takes 8 neighbors from a row of <span class="vB">Bs</span>, each in its own <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">bank</a> and broadcast to 4 threads. A read of <span class="vA">a</span> takes 4 neighbors from a column of <span class="vA">As</span>, a row (BK numbers) apart, so they share banks once BK reaches 16. Storing <span class="vA">As</span> transposed, k along its rows, puts them side by side in memory too.</li>
+      <li><b>Vectorized loads.</b> A <code>float4</code> is 4 neighboring floats, 16 bytes, loaded or stored with one instruction instead of 4 (<a href="https://godbolt.org/z/doP46frqe">compare the two</a>). Real kernels copy tiles this way, 4 neighbors of a row of <span class="vA">A</span> or <span class="vB">B</span> per thread, and read <span class="vA">a</span> and <span class="vB">b</span> 4 at a time for each 4 × 4 piece, which needs <span class="vA">As</span> transposed (note 2). A quarter of the instructions move the same bytes, leaving the warp schedulers more turns for multiply-adds. A <code>float4</code> must start at a <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#vector-types-alignment-requirements-in-device-code">multiple of 16 bytes</a>, so N must be a multiple of 4.</li>
+      <li><b>Software pipelining.</b> CUTLASS keeps two tiles of <span class="vA">As</span> and <span class="vB">Bs</span> in shared memory (Part 2, note 4), copying the next while computing on this one. It also <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">double-buffers registers</a>: a thread reads the next step's <span class="vA">a</span> and <span class="vB">b</span> while multiplying this step's. Copying from global to shared memory without registers needs <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html#advanced-kernels-async-copies">compute capability 8.0</a>; the T4 is <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html">7.5</a>. So each thread loads its share of the next tile into registers before this tile's multiply-adds and stores it into the other buffer after them, and the loads finish while the multiply-adds run.</li>
     </ol>
   </section>
 
@@ -683,7 +705,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     const wRows = `${r0 + p.wr}..${r0 + p.wr + WM - 1}`, wCols = `${c0 + p.wc}..${c0 + p.wc + WN - 1}`;
     const prev = perK(Array.from({ length: NT }, (_, q) => q), p4rows, p4cols);
     if (s.kind === 'setup') {
-      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined ${BM} × ${BN} numbers of ${vC('C')} with ${NT} threads, as in Part 4, but each of its ${NW} warps now takes a ${WM} × ${WN} square, outlined on the chip. Each thread keeps one sum in each ${SM} × ${SN} sub-tile of its warp's square.`;
+      if (level === 'block') return `<b>${cap(blockName())}</b> computes the outlined ${BM} × ${BN} numbers of ${vC('C')} with ${NT} threads, as in Part 4, but each of its ${NW} warps now takes an outlined ${WM} × ${WN} square on the chip, with one sum per thread in each ${SM} × ${SN} sub-tile.`;
       if (level === 'warp') return `<b>Warp ${w}</b> of ${blockName()}, threads ${p.w * WS} to ${p.w * WS + WS - 1}, computes ${vC(`C[${wRows}][${wCols}]`)}. It needs rows ${wRows} of ${vA('A')} and columns ${wCols} of ${vB('B')}, where a Part 4 warp needed 2 rows and 8 columns.`;
       return `<b>Thread ${t}</b> of ${blockName()}, lane ${p.l} of warp ${w}, computes the outlined numbers of ${vC('C')} in rows ${r0 + i0} and ${r0 + i1} and columns ${c0 + j0} and ${c0 + j1}: one in each sub-tile of its warp's square. It needs those rows of ${vA('A')} and columns of ${vB('B')}.`;
     }
@@ -903,11 +925,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    warptile: 'A level between block and thread: each warp computes its own tile of its block\'s part of C. A warp is the group of threads that runs each instruction together, so its tile decides which numbers each read of shared memory asks for.',
+    warptile: 'A level between block and thread: each warp computes its own tile of the block\'s C. A warp\'s threads run each instruction together, so its tile decides which numbers each shared memory read asks for.',
     subtile: 'A piece of the warp\'s square with one number per thread: 2 × 2 for 4 threads. The warp\'s threads fill one sub-tile together, then move on to the next.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads in 4 warps, each warp\'s 4 × 4 square of C outlined. Each sum is labeled with the thread that keeps it in a register. The other 3 blocks do the same at the same time.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 16 threads.',
+    head: 'Every thread of every block runs this at once, on a grid of 2 × 2 blocks of 16 threads.',
     shared: 'The same tiles as Part 4: 8 rows of A by 4 columns, and 4 rows of B by 8 columns, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[8][4], Bs[4][8];</code>',
     tid: 'This thread\'s place in its block, 0 to 15. CUDA puts consecutive threads in the same warp: 4 at a time here, 32 on a real GPU.',
     wl: 'Its warp w, 0 to 3, and its lane l, its place in the warp, 0 to 3.',
@@ -923,7 +945,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     ldB: 'Warp w copies row w of the B tile: 8 neighbors, in two coalesced loads of 4.',
     sync1: 'A barrier: no thread goes on until all 16 have reached it. Here it makes sure the tiles are complete, because each warp reads numbers other warps copied.<br>CUDA: <code>__syncthreads()</code>',
     kloop: '4 steps per tile. Each one: 2 reads of As and 2 of Bs per thread, for 4 multiply-adds.',
-    a: 'One number of As for each row of sub-tiles: rows i0 and i0 + 2. A warp\'s 4 threads read 2 neighbors in a column of As at once, each for 2 of them, and shared memory reads each once for both.',
+    a: 'One number of As for each row of sub-tiles: rows i0 and i0 + 2. A warp\'s 4 threads read 2 neighbors in a column of As at once; shared memory reads each once for the 2 threads that need it.',
     b: 'One number of Bs for each column of sub-tiles: columns j0 and j0 + 2. A warp\'s 4 threads read 2 neighbors in a row of Bs at once, each for 2 of them.',
     mn: 'One sub-tile at a time: at (m, n), the warp\'s 4 threads fill sub-tile (m, n) of its square together. Each a meets each b, so each number read is used twice, as in Part 4.',
     fma: 'acc[m][n] sits in sub-tile (m, n) of the warp\'s square, so it takes a[m], from its row of A, and b[n], from its column of B.',
@@ -931,7 +953,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     st: 'Each thread writes its 4 finished sums to C, once.',
     stij: 'Where acc[m][n] lies in the block: sub-tile (m, n) of the warp\'s square.',
     st1: 'Each thread writes its 4 finished sums to C, once. A warp writes its square, one 2 × 2 sub-tile per write.',
-    meter: 'Every number shared memory reads for the followed threads. When threads of one warp read the same number at once, shared memory reads it once and broadcasts it. Per step, a warp here reads 4 numbers of As and 4 of Bs, a Part 4 warp 2 and 8, and one thread reads 4 in both. Whole kernel at N = 16: 2,048 against 2,560.',
+    meter: 'Every number shared memory reads for the followed threads. Threads of a warp reading the same number at once get it from one read. Per step, a warp here reads 4 numbers of As and 4 of Bs, a Part 4 warp 2 and 8; one thread reads 4 in both. Whole kernel at N = 16: 2,048 against 2,560.',
     'sync-1': '<b>sync()</b><br>Wait until all 16 threads have copied their numbers.',
     'sync-2': '<b>sync()</b><br>Wait until all 16 threads are done with this tile before the next one overwrites it.',
   };
@@ -1101,6 +1123,46 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
       const b = e.target.closest('[data-pos]');
       if (b) { stop(); const to = +b.dataset.pos; go(to, to === pos + 1); }
     });
+  })();
+
+  // ---------- note 1: a warp tile sized for a T4; hovering a piece marks its thread's 4 pieces and what that thread reads at one step of k ----------
+  (function warpTileFigure() {
+    const wt = $('#wt'), name = $('#wt-t');
+    const LR = 4, LC = 8, PM = 4, PN = 4, SR = 2, SC = 2;   // lanes in a sub-tile, rows × columns; a piece is PM × PN numbers; SR × SC sub-tiles
+    const U = 6, P = PM * U, G = 8, S = 10, SG = 10, M = 18;  // pitch of a number and a piece; gap between sub-tiles; strip width, its gap; label margin
+    const X0 = M + S + SG, Y0 = X0, ROWS = SR * LR, COLS = SC * LC;
+    const px = (c) => X0 + c * P + Math.floor(c / LC) * G;    // left edge of piece column c
+    const py = (r) => Y0 + r * P + Math.floor(r / LR) * G;    // top edge of piece row r
+    const W = px(COLS - 1) + P - X0, H = py(ROWS - 1) + P - Y0;
+    wt.setAttribute('viewBox', `0 0 ${X0 + W + 6} ${Y0 + H + 6}`);
+    const sa = Array.from({ length: ROWS * PM }, (_, i) => el('rect', { class: 'sa', x: M, y: py(Math.floor(i / PM)) + (i % PM) * U, width: S, height: U }, wt));
+    const sb = Array.from({ length: COLS * PN }, (_, j) => el('rect', { class: 'sb', x: px(Math.floor(j / PN)) + (j % PN) * U, y: M, width: U, height: S }, wt));
+    text(wt, X0 + W / 2, M / 2, `WN = ${COLS * PN} numbers of Bs`, 'dim b');
+    text(wt, 0, 0, `WM = ${ROWS * PM} numbers of As`, 'dim a').setAttribute('transform', `translate(${M / 2} ${Y0 + H / 2}) rotate(-90)`);
+    el('rect', { class: 'warp-fr', x: X0 - 5, y: Y0 - 5, width: W + 10, height: H + 10, rx: 7 }, wt);
+    for (let a = 0; a < SR; a++) for (let b = 0; b < SC; b++)
+      el('rect', { class: 'tile-fr', x: px(b * LC) - 1.5, y: py(a * LR) - 1.5, width: LC * P + 3, height: LR * P + 3, rx: 4 }, wt);
+    const grid = [1, 2, 3].map((q) => `M${q * U} 1V${P - 1}M1 ${q * U}H${P - 1}`).join('');
+    const pcs = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const g = el('g', { class: 'pc', transform: `translate(${px(c)} ${py(r)})` }, wt);
+      el('rect', { class: 'hit', width: P, height: P }, g);    // a full pitch, so hover doesn't drop out between pieces
+      el('rect', { class: 'bg', x: 1, y: 1, width: P - 2, height: P - 2, rx: 3 }, g);
+      el('path', { class: 'grid', d: grid }, g);
+      g.lane = (r % LR) * LC + (c % LC);
+      text(g, P / 2, P / 2 + 0.5, String(g.lane), 'lane');
+      pcs.push(g);
+    }
+    function show(lane) {                              // lane l sits at row l / LC, column l mod LC of every sub-tile
+      const lr = Math.floor(lane / LC), lc = lane % LC;
+      pcs.forEach((g) => toggle(g, 'on', g.lane === lane));
+      sa.forEach((q, i) => toggle(q, 'on', Math.floor(i / PM) % LR === lr));
+      sb.forEach((q, j) => toggle(q, 'on', Math.floor(j / PN) % LC === lc));
+      name.textContent = `thread ${lane}`;
+    }
+    wt.addEventListener('pointerover', (e) => { const g = e.target.closest('.pc'); if (g) show(g.lane); });
+    wt.addEventListener('pointerleave', () => show(9));
+    show(9);
   })();
 
   const stage = $('.stage');

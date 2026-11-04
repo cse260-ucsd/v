@@ -315,8 +315,8 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     <h1>2D block tiling</h1>
     <p class="lede">
       <span class="term" data-tip="tiling">2D block tiling</span> gives each thread a 2 × 2 square of <span class="vC">C</span>.
-      At every step it reads 2 numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span> into <span class="term" data-tip="reg">registers</span> and multiplies each <span class="vA">a</span> by each <span class="vB">b</span>, so every number it reads is used twice.
-      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, which halves its copies from global memory per number of <span class="vC">C</span>. As in Parts 2 and 3, the matrices are 16 × 16, which fits 4 such blocks.
+      At every step it reads 2 numbers of <span class="vA">As</span> and 2 of <span class="vB">Bs</span> into <span class="term" data-tip="reg">registers</span> and multiplies each <span class="vA">a</span> by each <span class="vB">b</span>, using every number twice.
+      A block of 16 threads now covers 8 × 8 of <span class="vC">C</span>, halving its copies from global memory per number of <span class="vC">C</span>; the 16 × 16 matrices fit 4 such blocks.
     </p>
   </header>
 
@@ -387,9 +387,9 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Square and block sizes.</b> Both are parameters to tune. With a TM × TN square per thread, each step reads TM numbers of <span class="vA">As</span> and TN of <span class="vB">Bs</span> for TM · TN multiply-adds. A block covering BM × BN of <span class="vC">C</span> copies BM + BN numbers from global memory per step of k, for BM · BN numbers of <span class="vC">C</span>. Bigger squares and blocks reuse more of what they read, but need more registers and shared memory, so time a few combinations on the Tesla T4, at the matrix sizes in use, to find the fastest.</li>
+      <li><b>Square and block sizes.</b> Both are parameters to tune. A TM × TN square reads TM numbers of <span class="vA">As</span> and TN of <span class="vB">Bs</span> per step for TM · TN multiply-adds; a BM × BN block copies BM + BN numbers from global memory per step of k for BM · BN numbers of <span class="vC">C</span>. Bigger ones reuse more of what they read but need more registers and shared memory, so time a few combinations on the Tesla T4 at the matrix sizes in use.</li>
       <li><b>Registers.</b> A thread needs TM · TN registers for its sums and TM + TN for <span class="vA">a</span> and <span class="vB">b</span>. A Tesla T4 SM (streaming multiprocessor) has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#occupancy">65,536 registers</a>: 64 per thread when all 1,024 threads it can hold are there. Past that, <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy">fewer warps fit per SM</a>, and each thread's TM · TN independent multiply-adds have to keep it busy instead.</li>
-      <li><b>Banks.</b> The threads of a warp read <span class="vB">Bs</span> two numbers apart. Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, with successive 4-byte words in successive banks, so the 4 threads here hit 4 different banks. A real warp of 32 threads along a row of the block would put two threads in each bank, and the two reads would take turns. CUTLASS lays out its reads of shared memory to be <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">conflict-free</a>.</li>
+      <li><b>Banks.</b> A warp's threads read <span class="vB">Bs</span> two numbers apart. Shared memory has <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, successive 4-byte words in successive banks, so the 4 threads here hit 4 banks. A real warp of 32 along a row of the block puts two threads in each bank, and their reads take turns. CUTLASS lays out its shared memory reads to be <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#warp-level-gemm">conflict-free</a>.</li>
     </ol>
   </section>
 
@@ -878,11 +878,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    tiling: 'Each thread computes a small block of C: here 2 × 2. Real kernels tune the size for their GPU. 2D because the block spans rows and columns, where Part 3\'s was a line.',
+    tiling: 'Each thread computes a small square of C, here 2 × 2: 2D because it spans rows and columns, where Part 3\'s strip was a line.',
     reg: 'The fastest storage, private to one thread. Arithmetic instructions take their operands from registers, so a number in shared memory first needs a load instruction of its own.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads, each with registers for its 4 sums, a and b. The other 3 blocks do the same at the same time.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 4 threads.',
+    head: 'Every thread of every block runs this at once, on a grid of 2 × 2 blocks of 4 × 4 threads.',
     shared: 'Tiles twice Part 2\'s size: 8 rows of A by 4 columns, and 4 rows of B by 8 columns, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[8][4], Bs[4][8];</code>',
     tid: 'This thread\'s place in its block: tx and ty each from 0 to 3. The block is 4 × 4 threads, as in Part 2.',
     r: 'The first row of C this block covers. A block now covers 8 rows and 8 columns.',
@@ -898,7 +898,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     kloop: '4 steps per tile. Each one: 2 reads of As and 2 of Bs, for 4 multiply-adds.',
     a: 'One number of As for each row of this thread\'s square. All 4 threads of a warp read the same two, and shared memory serves each to all of them at once.',
     b: 'One number of Bs for each column of this thread\'s square.',
-    mn: 'Every a with every b: 4 multiply-adds from the 4 numbers just read, each used twice. The 4 don\'t depend on each other, so none waits for another to finish.',
+    mn: 'Every a with every b: 4 multiply-adds from the 4 numbers just read, each used twice. The 4 are independent, so none waits for another.',
     fma: 'acc[m][n] sits at row m, column n of this thread\'s square, so it takes a[m], from its row of A, and b[n], from its column of B.',
     sync2: 'Wait until every thread is done with this tile. Otherwise a fast thread could copy the next tile over numbers a slow thread still needs.',
     st: 'Each thread writes its 4 finished sums to C, once.',

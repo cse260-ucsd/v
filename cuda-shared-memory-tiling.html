@@ -315,9 +315,9 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <header class="prose">
     <h1>Shared memory tiling</h1>
     <p class="lede">
-      <span class="term" data-tip="smem">Shared memory</span> <span class="term" data-tip="cache">tiling</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles small enough
-      to fit in shared memory. Each block copies a tile from global memory once, and all its threads read it from there.
-      The matrices grow to 16 × 16 here, 4 tiles to a side.
+      <span class="term" data-tip="smem">Shared memory</span> <span class="term" data-tip="cache">tiling</span> splits <span class="vA">A</span> and <span class="vB">B</span> into tiles that fit in shared memory.
+      Each block copies a tile from global memory once, and all its threads read it from there.
+      The matrices grow to 16 × 16, 4 tiles to a side.
     </p>
   </header>
 
@@ -375,11 +375,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
   <section class="notes">
     <h2>In a real implementation</h2>
     <ol>
-      <li><b>Tile size.</b> The tile size is a parameter to tune. With T × T tiles and one thread per number as here, a block has T² threads, each number copied to shared memory serves T multiply-adds, and reads from global memory drop by a factor of T against Part 1. Bigger tiles also take more shared memory and leave room for fewer blocks per SM (below), so time a few sizes on the Tesla T4 to find the fastest.</li>
+      <li><b>Tile size.</b> The tile size is a parameter to tune. With T × T tiles and one thread per number, a block has T² threads, each copied number serves T multiply-adds, and reads from global memory drop T-fold against Part 1. Bigger tiles take more shared memory and fit fewer blocks per SM (below), so time a few sizes on the Tesla T4.</li>
       <li><b>Shared memory size.</b> A Tesla T4 has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#unified-shared-memory-l1-texture-cache">64 KB</a> of shared memory per SM (streaming multiprocessor). A block can declare up to 48 KB with <code>__shared__</code>, and use all 64 KB with an explicit opt-in. Two T × T tiles of floats take 8T² bytes: 128 for the 4 × 4 tiles here.</li>
       <li><b>Waiting at <code>sync()</code>.</b> While one block's warps wait, at a barrier or for memory, the SM runs warps of its other blocks. A T4 SM holds at most <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">1,024 threads</a>, so the bigger the block, the fewer others share its SM. A block of 1,024 threads leaves none to run during its waits.</li>
-      <li><b>Overlapping copies with math.</b> Here every thread copies, waits, computes and waits again. CUTLASS keeps <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">two tiles</a> of each matrix in shared memory: threads compute on one while the next is copied into the other, so the trip to global memory overlaps the math.</li>
-      <li><b>Banks.</b> Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, with successive 4-byte words in successive banks. When threads of a warp read different words in the same bank, the reads take turns. Here each warp reads one number of <span class="vA">As</span>, which shared memory broadcasts to all of them, and neighboring numbers of <span class="vB">Bs</span>, each in its own bank, so no read waits. That stays true with 32-thread warps for any tile width that is a power of 2.</li>
+      <li><b>Overlapping copies with math.</b> Here every thread copies, waits, computes and waits again. CUTLASS keeps <a href="https://docs.nvidia.com/cutlass/latest/media/docs/cpp/efficient_gemm.html#pipelining">two tiles</a> of each matrix in shared memory and computes on one while copying the next into the other, so the trip to global memory overlaps the math.</li>
+      <li><b>Banks.</b> Shared memory is split into <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#shared-memory-and-memory-banks">32 banks</a>, successive 4-byte words in successive banks. Threads of a warp reading different words of one bank take turns. Here a warp reads one number of <span class="vA">As</span>, broadcast to all its threads, and neighbors in <span class="vB">Bs</span>, each in its own bank, so no read waits. With 32-thread warps that holds for any power-of-2 tile width.</li>
       <li><b>Sizes that don't divide.</b> Real kernels handle an N that isn't a multiple of the tile: threads whose number falls outside the matrix copy a 0 into <span class="vA">As</span> or <span class="vB">Bs</span>, and skip the store.</li>
     </ol>
   </section>
@@ -786,11 +786,11 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 
   // ---------- hover tips ----------
   const TIPS = {
-    cache: 'On a CPU, the same idea is called cache blocking: working on a piece of the data small enough to stay in the cache. A GPU has caches too, but they are small and shared by thousands of threads, so the kernel manages its own: shared memory.',
+    cache: 'On a CPU this is cache blocking: working on a piece of the data small enough to stay in cache. A GPU\'s caches are small and shared by thousands of threads, so the kernel manages its own: shared memory.',
     smem: 'A small, fast memory on the chip. Each block gets its own (here: As and Bs), and all its threads can read and write it. Reaching it takes tens of cycles, against hundreds for global memory.',
     global: 'The GPU\'s main memory. Large, and every block can reach it, but each trip takes hundreds of cycles.',
     chip: 'The part of the chip running this block: its shared memory (As, Bs) and its 16 threads. The other 15 blocks do the same at the same time, each with its own As and Bs.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time.',
+    head: 'Every thread of every block runs this at once, on a grid of 4 × 4 blocks of 4 × 4 threads.',
     shared: 'One As and one Bs per block, in shared memory: 4 × 4 numbers each, seen by all 16 threads of the block.<br>CUDA: <code>__shared__ float As[4][4];</code>',
     tid: "This thread's place in its block.",
     row: 'Same mapping as Part 1: <code>threadIdx.x</code> runs along a row of C, so each warp\'s loads stay coalesced.',

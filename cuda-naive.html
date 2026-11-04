@@ -285,8 +285,8 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
   <header class="prose">
     <h1>Naive</h1>
     <p class="lede">
-      The simplest kernel gives every number of <span class="vC">C</span> its own thread, which reads a row of <span class="vA">A</span> and a column of <span class="vB">B</span> straight from global memory.
-      Memory serves the threads of a <span class="term" data-tip="warp">warp</span> together, so their loads are <span class="term" data-tip="coalesced">coalesced</span> only if the warp reads neighbors.
+      The simplest kernel gives each number of <span class="vC">C</span> its own thread, which reads a row of <span class="vA">A</span> and a column of <span class="vB">B</span> straight from global memory.
+      Memory serves a <span class="term" data-tip="warp">warp</span>'s threads together, so their loads are <span class="term" data-tip="coalesced">coalesced</span> only if they read neighbors.
     </p>
   </header>
 
@@ -343,14 +343,13 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 
   <section class="notes">
     <h2>In a real implementation</h2>
-    <p>The picture shrinks an NVIDIA Tesla T4 to fit on screen. The kernel runs on it as written; what changes is scale, and how the hardware schedules the work.</p>
     <ol>
-      <li><b>Warps.</b> A warp has <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html#warps-and-simt">32 threads</a>, not 4. It takes 32 consecutive thread IDs, counted along <code>threadIdx.x</code> first, so in a block 16 threads wide, each warp covers two rows of threads.</li>
-      <li><b>Sizes.</b> A block can have up to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">1,024 threads</a>. The best size depends on the kernel, the GPU and the matrices: time a few to find it. Matrices worth a GPU are hundreds to thousands of numbers per side, so the grid has far more than 4 blocks.</li>
-      <li><b>Running at once.</b> In the picture, every thread takes each step together. A T4 has 40 streaming multiprocessors (SMs), each holding at most <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">16 blocks and 1,024 threads</a> at a time; further blocks wait for a free SM. Each SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#instruction-scheduling">4 warp schedulers</a>. Each one issues an instruction for one warp at a time, and switches to another warp while one waits for memory.</li>
+      <li><b>Warps.</b> A Tesla T4 warp has <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html#warps-and-simt">32 threads</a>, not 4: 32 consecutive thread IDs, counted along <code>threadIdx.x</code> first. In a block 16 threads wide, a warp covers two rows of threads.</li>
+      <li><b>Sizes.</b> A block can have up to <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">1,024 threads</a>; time a few sizes to find the fastest. Matrices worth a GPU have hundreds to thousands of numbers per side, so the grid has far more than 4 blocks.</li>
+      <li><b>Running at once.</b> In the picture, all threads step together. A T4 has 40 streaming multiprocessors (SMs), each holding at most <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html#features-and-technical-specifications">16 blocks and 1,024 threads</a>; further blocks wait for a free SM. Each SM has <a href="https://docs.nvidia.com/cuda/turing-tuning-guide/index.html#instruction-scheduling">4 warp schedulers</a>, each issuing instructions for one warp at a time and switching to another warp while that one waits for memory.</li>
       <li><b>Memory chunks.</b> A chunk is <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#coalesced-access-to-global-memory">32 bytes</a>: 8 floats, not 4. A warp reading 32 neighbors along a row needs 4 chunks, 128 bytes. Reading down a column, it needs 32 chunks and uses 4 bytes of each.</li>
-      <li><b>Caches.</b> The picture fetches every chunk from memory. A T4 keeps recent chunks in its L1 and L2 caches, so with <code>threadIdx.x</code> → row, the chunk fetched for <span class="vA">A[r][0]</span> may still hold <span class="vA">A[r][1]</span> to <span class="vA">A[r][7]</span> at the next steps. Each chunk is still a separate 32-byte access, cached or not, so reading down a column still takes 32 accesses where reading along a row takes 4.</li>
-      <li><b>Sizes that don't divide.</b> This launch makes N / 4 blocks per side, which covers <span class="vC">C</span> only when N is a multiple of 4. Real code rounds the grid up and has threads outside the matrix skip the work: <code>if (row &lt; N &amp;&amp; col &lt; N)</code>.</li>
+      <li><b>Caches.</b> The picture fetches every chunk from memory; a T4 keeps recent ones in its L1 and L2 caches, so with <code>threadIdx.x</code> → row, the chunk fetched for <span class="vA">A[r][0]</span> may still hold <span class="vA">A[r][1]</span> to <span class="vA">A[r][7]</span> at the next steps. Cached or not, each chunk is a separate access: down a column still takes 32 where along a row takes 4.</li>
+      <li><b>Sizes that don't divide.</b> N / 4 blocks per side cover <span class="vC">C</span> only when N is a multiple of 4. Real code rounds the grid up and has threads outside the matrix skip the work: <code>if (row &lt; N &amp;&amp; col &lt; N)</code>.</li>
     </ol>
   </section>
 
@@ -575,11 +574,11 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
   const list = (name, pairs) => pairs.map(([i, j]) => `${name}[${i}][${j}]`).join(', ');
   function narrate(s) {
     const rowMode = mode === 'row';
-    if (s.kind === 'setup') return `Every block splits into warps of ${WARP} threads with consecutive <code>threadIdx.x</code>. ` +
+    if (s.kind === 'setup') return `Each block splits into warps of ${WARP} threads with consecutive <code>threadIdx.x</code>. ` +
       (rowMode
-        ? `Here <code>row</code> comes from <code>threadIdx.x</code>, so each warp runs <b>down a column</b> of <span class="vC">C</span>.`
-        : `Here <code>col</code> comes from <code>threadIdx.x</code>, so each warp runs <b>along a row</b> of <span class="vC">C</span>.`) +
-      ` Each thread is labeled with its <code>threadIdx</code>.`;
+        ? `With <code>row</code> from <code>threadIdx.x</code>, each warp runs <b>down a column</b> of <span class="vC">C</span>.`
+        : `With <code>col</code> from <code>threadIdx.x</code>, each warp runs <b>along a row</b> of <span class="vC">C</span>.`) +
+      ` Labels are <code>threadIdx</code>.`;
 
     if (s.kind === 'store') {
       const st = groupStore();
@@ -589,29 +588,29 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
       }
       if (level === 'block') return `The block's ${WPB} warps write their ${TPB} results in <b>${plural(st.n, 'chunk')}</b>.`;
       return rowMode
-        ? `Every thread writes its sum. Warp ${warpOf(anchor)}'s four results land in four different rows of <span class="vC">C</span>: <b>4 chunks</b>.`
-        : `Every thread writes its sum. Warp ${warpOf(anchor)}'s four results sit side by side in one row of <span class="vC">C</span>: <b>1 chunk</b>.`;
+        ? `Warp ${warpOf(anchor)}'s four sums land in four rows of <span class="vC">C</span>: <b>4 chunks</b>.`
+        : `Warp ${warpOf(anchor)}'s four sums sit side by side in one row of <span class="vC">C</span>: <b>1 chunk</b>.`;
     }
 
     const k = s.k;
     if (level === 'thread') {
       const [r, c] = cellOf(anchor), w = warpOf(anchor), ld = warpLoad(w, k);
-      return `<b>k = ${k}</b>: this thread needs <span class="vA">A[${r}][${k}]</span> and <span class="vB">B[${k}][${c}]</span>, ` +
-        `one number from each, in either layout. Memory serves whole warps, though: its warp ${w} asks for <b>${plural(ld.A.size + ld.B.size, 'chunk')}</b>.`;
+      return `<b>k = ${k}</b>: this thread needs <span class="vA">A[${r}][${k}]</span> and <span class="vB">B[${k}][${c}]</span> in either layout, ` +
+        `but memory serves whole warps: warp ${w} asks for <b>${plural(ld.A.size + ld.B.size, 'chunk')}</b>.`;
     }
     if (level === 'block') {
       const L = groupLoad(k);
-      return `<b>k = ${k}</b>: the block's ${WPB} warps each send their own request: <b>${L.a + L.b} chunks</b> ` +
-        `(${L.a} from A, ${L.b} from B), though they cover only ${L.hitA.size + L.hitB.size} different chunks.`;
+      return `<b>k = ${k}</b>: the block's ${WPB} warps request <b>${L.a + L.b} chunks</b> ` +
+        `(${L.a} of A, ${L.b} of B), only ${L.hitA.size + L.hitB.size} of them different.`;
     }
     const w = warpOf(anchor), cs = group().map((g) => cellOf(g)), ld = warpLoad(w, k);
-    if (k > 0) return `<b>k = ${k}</b>: all ${WARPS} warps load at the same time. Warp ${w} touches ` +
+    if (k > 0) return `<b>k = ${k}</b>: warp ${w} touches ` +
       `<b>${ld.A.size}</b> ${ld.A.size === 1 ? 'chunk' : 'chunks'} of <span class="vA">A</span> and <b>${ld.B.size}</b> of <span class="vB">B</span>.`;
     return rowMode
-      ? `<b>k = 0</b>: warp ${w} needs <span class="vA">${list('A', cs.map(([r]) => [r, k]))}</span>. They sit in four different rows, ` +
-        `so memory fetches <b>4 chunks</b> and uses one number from each. All four threads share <span class="vB">B[${k}][${cs[0][1]}]</span>: 1 chunk.`
-      : `<b>k = 0</b>: warp ${w} needs <span class="vB">${list('B', cs.map(([, c]) => [k, c]))}</span>. They sit side by side, ` +
-        `so memory fetches them as <b>1 chunk</b>. All four threads share <span class="vA">A[${cs[0][0]}][${k}]</span>: 1 more chunk.`;
+      ? `<b>k = 0</b>: warp ${w} needs <span class="vA">${list('A', cs.map(([r]) => [r, k]))}</span>. They sit in four rows, ` +
+        `so memory fetches <b>4 chunks</b> and uses one number of each. All four share <span class="vB">B[${k}][${cs[0][1]}]</span>: 1 chunk.`
+      : `<b>k = 0</b>: warp ${w} needs <span class="vB">${list('B', cs.map(([, c]) => [k, c]))}</span>. They sit side by side: ` +
+        `<b>1 chunk</b>. All four share <span class="vA">A[${cs[0][0]}][${k}]</span>: 1 more.`;
   }
 
   // ---------- memory chunks fetched so far: both layouts ----------
@@ -715,14 +714,14 @@ svg.pic { display: block; width: 100%; max-width: 620px; height: auto; margin: 0
 
   // ---------- hover tips ----------
   const TIPS = {
-    warp: 'A group of threads with consecutive <code>threadIdx.x</code>: 32 on a real GPU, 4 here. The hardware issues one instruction for the whole warp and sends its memory requests together.',
-    coalesced: 'When a warp reads neighboring addresses, the GPU serves it with a few wide transactions instead of one per thread. Matrices are stored row by row, so neighbors sit along a row: let <code>threadIdx.x</code> run along a row. A real warp of 32 then reads 128 neighboring bytes, against 32 separate pieces when it runs down a column.',
+    warp: 'Threads with consecutive <code>threadIdx.x</code>: 32 on a real GPU, 4 here. The hardware issues each instruction for the whole warp and sends its memory requests together.',
+    coalesced: 'When a warp reads neighboring addresses, the GPU serves it with a few wide transactions instead of one per thread. Matrices are stored row by row, so let <code>threadIdx.x</code> run along a row: a real warp then reads 128 neighboring bytes, against 32 separate pieces down a column.',
     'mode-row': 'Uncoalesced: each warp runs down a column of C.',
     'mode-col': 'Coalesced: each warp runs along a row of C.',
     grid: 'The launch makes N / 4 × N / 4 = 2 × 2 blocks. Their <code>blockIdx</code> runs along the axes of C.',
     block: 'Each block has 4 × 4 threads, one per cell of its square in C. Each row of 4 consecutive <code>threadIdx.x</code> is a warp.',
     chunk: 'Memory hands out neighbors in fixed pieces, 4 numbers here (32 bytes on a T4). A warp\'s load costs one fetch per chunk its threads touch.',
-    head: 'Pseudo-code for the kernel. Every thread in every block runs it at the same time, on a grid of 2 × 2 blocks of 4 × 4 threads.',
+    head: 'Every thread of every block runs this at once, on a grid of 2 × 2 blocks of 4 × 4 threads.',
     acc: 'The running sum lives in a register, private to the thread. C is only written at the end.',
     for: 'N = 8 steps. At each one, every thread loads one number of A and one of B from global memory.',
     fma: 'A[row][k] is needed by all 8 threads in that row of C, and each loads it separately. Every number of A and B gets loaded 8 times: 1,024 loads for 128 numbers.',
