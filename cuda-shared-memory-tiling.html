@@ -234,6 +234,15 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
 .tip .vA, .tip .vB, .tip .vC { color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
 .tip .vA { text-decoration-color: var(--a); } .tip .vB { text-decoration-color: var(--b); } .tip .vC { text-decoration-color: var(--c); }
 .tip code { background: color-mix(in srgb, var(--bg) 18%, transparent); color: inherit; }
+/* Follow buttons' tips: Part 1's gridDim and blockDim pictures, drawn in the tip's ink, with the followed block, warp or thread marked */
+.tip .dims { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 6px; }
+.tip .dims svg { display: block; flex: none; }
+.tip .dims .k { font: 700 0.8rem var(--font-mono); }
+.tip .dims .gb, .tip .dims .bk, .tip .dims .wp { fill: none; stroke: currentColor; stroke-opacity: 0.5; stroke-width: 1.2; }
+.tip .dims .th { fill: currentColor; fill-opacity: 0.5; }
+.tip .dims .on { stroke-opacity: 1; stroke-width: 2; fill-opacity: 1; }
+.tip .dims .gb.on { fill: currentColor; }
+.tip .dims .wp.on { fill: currentColor; fill-opacity: 0.3; }
 
 /* code */
 .panel-h { font: 700 0.72rem var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
@@ -863,6 +872,33 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     return { html, marks, srcs, outline };
   }
 
+  const LV = { grid: [NB, NB], block: [T, T], size: T, tid: () => anchor.ty * T + anchor.tx,
+    thread: () => `Thread (${anchor.tx}, ${anchor.ty})`, warp: () => `Warp ${warpNo(anchor.bx, anchor.by, anchor.ty)}` };
+  // ---------- Follow buttons: Part 1's gridDim and blockDim pictures, with the followed block, warp or thread marked ----------
+  function levelTip(lv) {
+    const [gx, gy] = LV.grid, [dx, dy] = LV.block, ws = LV.size, id = LV.tid();
+    const head = lv === 'block' ? `<b>${cap(blockName())}</b>` : `<b>${LV[lv]()}</b> of ${blockName()}`;
+    let pic = '', w, h, k, s;
+    if (lv === 'block') {
+      const p = gx > 2 ? 17 : 23;                     // Part 1's 2 × 2 squares, smaller when there are more
+      w = h = gx * p - 2;
+      for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++)
+        pic += `<rect class="gb${x === anchor.bx && y === anchor.by ? ' on' : ''}" x="${x * p + 1}" y="${y * p + 1}" width="${p - 4}" height="${p - 4}" rx="3"/>`;
+      k = `gridDim = (${gx}, ${gy})`; s = `${gx * gy} blocks`;
+    } else {                                          // threads by threadIdx, warps as pills of consecutive threads
+      w = dx * 10 + 6; h = dy * 10 + 6;
+      pic = `<rect class="bk" x="0.5" y="0.5" width="${w - 1}" height="${h - 1}" rx="4"/>`;
+      for (let q = 0; q < (dx * dy) / ws; q++)
+        pic += `<rect class="wp${lv === 'warp' && q === Math.floor(id / ws) ? ' on' : ''}" x="${3 + ((q * ws) % dx) * 10}" y="${3 + Math.floor((q * ws) / dx) * 10}" width="${ws * 10}" height="9" rx="4.5"/>`;
+      for (let t = 0; t < dx * dy; t++) {
+        const on = lv === 'thread' && t === id;
+        pic += `<circle class="th${on ? ' on' : ''}" cx="${8 + (t % dx) * 10}" cy="${7.5 + Math.floor(t / dx) * 10}" r="${on ? 3.4 : 2.6}"/>`;
+      }
+      k = `blockDim = (${dx}, ${dy})`; s = `${(dx * dy) / ws} warps of ${ws} threads`;
+    }
+    return `${head}<div class="dims"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${pic}</svg><div><span class="k">${k}</span><br>${s}</div></div>`;
+  }
+
   const tip = $('#tip');
   let tipNode = null, tipMarks = [], tipSrcs = [];
   function showTip(node) {
@@ -875,6 +911,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     let html, outline;
     if (node.dataset.kind) ({ html, marks: tipMarks, srcs: tipSrcs, outline } = cellTip(node));
     else if (node.dataset.pos != null) html = stepTip(+node.dataset.pos);
+    else if (node.dataset.level) html = levelTip(node.dataset.level);
     else html = TIPS[node.dataset.tip || node.dataset.id];
     if (!html) { tip.hidden = true; return; }
     tipMarks.forEach((m) => m.classList.add('hl'));
@@ -892,7 +929,7 @@ svg.pic { display: block; width: 100%; height: auto; margin: 0 auto; touch-actio
     tip.style.left = `${x}px`;
     tip.style.top = `${y}px`;
   }
-  const HOVER = '.cell, [data-tip], #code .ln, #timeline [data-pos]';
+  const HOVER = '.cell, [data-tip], #code .ln, #timeline [data-pos], #seg-level button';
   document.addEventListener('pointerover', (e) => {
     const node = e.target.closest(HOVER);
     if (node !== tipNode) showTip(node);
